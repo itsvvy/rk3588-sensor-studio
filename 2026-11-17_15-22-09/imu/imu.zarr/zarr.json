@@ -1,0 +1,23 @@
+{
+  "attributes": {
+    "sensor": "JY931",
+    "device": "/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0",
+    "baudrate": 115200,
+    "synthetic": false,
+    "sensor_type": [
+      "accel",
+      "gyro",
+      "angle"
+    ],
+    "data_format": "raw int16 X/Y/Z",
+    "timestamp_format": "host monotonic nanoseconds",
+    "clock_anchor_monotonic_ns": 4486819034680,
+    "clock_anchor_unix_ns": 1794900129214191798,
+    "accel_scale": "raw/32768*16 g",
+    "gyro_scale": "raw/32768*2000 deg/s",
+    "angle_scale": "raw/32768*180 deg",
+    "created_at": "2026-11-17T15:22:09+0800"
+  },
+  "zarr_format": 3,
+  "node_type": "group"
+}

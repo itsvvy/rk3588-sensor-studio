@@ -1,0 +1,22 @@
+2026-11-17T07:22:09.187835+00:00 session created; synthetic=False
+2026-11-17T07:22:09.188446+00:00 starting source: imu
+2026-11-17T07:22:09.188683+00:00 IMU zarr import completed; elapsed_ms=0.0
+2026-11-17T07:22:09.194763+00:00 IMU zarr opened; elapsed_ms=6.0
+2026-11-17T07:22:09.237106+00:00 IMU zarr initialized; elapsed_ms=42.3
+2026-11-17T07:22:09.237223+00:00 started source: imu; elapsed_ms=48.8
+2026-11-17T07:22:09.237422+00:00 starting source: dvs
+2026-11-17T07:22:09.238539+00:00 started source: dvs; elapsed_ms=1.1
+2026-11-17T07:22:09.239478+00:00 starting source: cis
+2026-11-17T07:22:09.251878+00:00 started source: cis; elapsed_ms=12.4
+2026-11-17T07:22:09.251987+00:00 recording started
+2026-11-17T07:22:09.252608+00:00 all source recorders started; sdk_ready=True
+2026-11-17T07:22:17.763395+00:00 stopping source: dvs
+2026-11-17T07:22:17.768194+00:00 DVS RAW writer stopped
+2026-11-17T07:22:17.768704+00:00 stopped source: dvs
+2026-11-17T07:22:17.768759+00:00 stopping source: cis
+2026-11-17T07:22:19.778146+00:00 stopped source: cis
+2026-11-17T07:22:19.778410+00:00 stopping source: imu
+2026-11-17T07:22:19.815313+00:00 IMU Zarr writer stopped
+2026-11-17T07:22:19.815412+00:00 stopped source: imu
+2026-11-17T07:22:19.823028+00:00 stop requested; previous_state=RECORDING
+2026-11-17T07:22:19.823400+00:00 finalizing with status=complete

@@ -29,26 +29,25 @@ The recorded environment expects the existing `/home/astri/myenv` and
 
 ## Capture sessions
 
-### `2026-11-09_14-20-38`
+### `2026-11-17_15-22-09`
 
-First retained baseline capture for this repository.
+Current retained baseline capture for this repository.
 
 - Status: `complete`
 - Synthetic: `false`
-- DVS RAW: 6,204,229 events over 3.487 seconds
-- CIS: 2,560x720 H.264, 25 fps, 88 recorded frames
-- IMU: 996 samples for each of accel, gyro, and angle
-- IMU reconnects during session: 2
-- Recorded output size: approximately 50 MB
+- DVS RAW: 5,746,637 events over 8.520 seconds
+- CIS: 2,560x720 H.264, 25 fps, 214 recorded frames
+- IMU: 2,125 samples for each of accel, gyro, and angle
+- IMU reconnects during session: 0
+- Recorded output size: approximately 54 MB
 
-See [the session notes](2026-11-09_14-20-38/NOTES.md), `manifest.json`, and
+See [the session notes](2026-11-17_15-22-09/NOTES.md), `manifest.json`, and
 `logs/session.log` for the complete recorded metadata.
 
-The DVS count in that historical `manifest.json` includes callback statistics
-from before the RAW file was opened. The count reported by
-`metavision_file_info` for `events.raw` is authoritative for the data file.
-The launcher now resets DVS counters when recording starts so future manifests
-use the recording-session boundary.
+The DVS manifest count matches the event count reported by
+`metavision_file_info` for the recorded RAW stream. The launcher resets DVS
+counters when recording starts so each manifest describes the recording
+session.
 
 ## Versioning
 
