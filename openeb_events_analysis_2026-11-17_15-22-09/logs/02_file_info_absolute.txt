@@ -1,0 +1,16 @@
+Analyzing file...Analyzing file   ====================================================================================================
+
+Name                events.raw
+Path                /home/astri/rk3588-sensor-studio/2026-11-17_15-22-09/dvs/events.raw
+Duration            36s 239ms 999us 
+Integrator          Prophesee
+Plugin name         hal_plugin_prophesee
+Data encoding       EVT21
+Camera generation   320.1
+Camera serial       00000374
+
+====================================================================================================
+
+Type of event       Number of events    First timestamp     Last timestamp      Average event rate  
+----------------------------------------------------------------------------------------------------
+CD                  5746637             27720013            36239999            158.6 Kev/s         

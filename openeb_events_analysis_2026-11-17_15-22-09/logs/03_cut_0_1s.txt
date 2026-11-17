@@ -1,0 +1,1 @@
+Output saved in file /home/astri/openeb_events_analysis_2026-11-17_15-22-09/raw_samples/events_0_1s.raw 

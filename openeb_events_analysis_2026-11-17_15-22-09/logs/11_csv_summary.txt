@@ -1,0 +1,11 @@
+events=163055
+x_min=0
+x_max=319
+y_min=0
+y_max=319
+p_0_OFF=73370
+p_1_ON=89685
+t_first_us=13
+t_last_us=995585
+duration_us=995572
+average_rate_events_per_s=163780.219

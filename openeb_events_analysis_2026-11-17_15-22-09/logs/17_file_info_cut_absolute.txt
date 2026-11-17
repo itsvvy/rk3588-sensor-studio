@@ -1,0 +1,16 @@
+Analyzing file...Analyzing file   ====================================================================================================
+
+Name                events_0_1s.raw
+Path                /home/astri/openeb_events_analysis_2026-11-17_15-22-09/raw_samples/events_0_1s.raw
+Duration            28s 715ms 585us 
+Integrator          Prophesee
+Plugin name         hal_plugin_prophesee
+Data encoding       EVT21
+Camera generation   320.1
+Camera serial       00000374
+
+====================================================================================================
+
+Type of event       Number of events    First timestamp     Last timestamp      Average event rate  
+----------------------------------------------------------------------------------------------------
+CD                  163055              27720013            28715585            5.7 Kev/s           

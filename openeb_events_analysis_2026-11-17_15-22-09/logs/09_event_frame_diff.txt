@@ -1,0 +1,1 @@
+Wrote event frame file to: /home/astri/openeb_events_analysis_2026-11-17_15-22-09/event_frames/events_0_1s_diff.raw 

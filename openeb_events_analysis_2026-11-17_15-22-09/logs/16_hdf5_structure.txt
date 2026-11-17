@@ -1,0 +1,147 @@
+HDF5 "/home/astri/openeb_events_analysis_2026-11-17_15-22-09/hdf5/events_0_1s.hdf5" {
+GROUP "/" {
+   ATTRIBUTE "camera_integrator_name" {
+      DATATYPE  H5T_STRING {
+         STRSIZE H5T_VARIABLE;
+         STRPAD H5T_STR_NULLTERM;
+         CSET H5T_CSET_ASCII;
+         CTYPE H5T_C_S1;
+      }
+      DATASPACE  SCALAR
+   }
+   ATTRIBUTE "date" {
+      DATATYPE  H5T_STRING {
+         STRSIZE H5T_VARIABLE;
+         STRPAD H5T_STR_NULLTERM;
+         CSET H5T_CSET_ASCII;
+         CTYPE H5T_C_S1;
+      }
+      DATASPACE  SCALAR
+   }
+   ATTRIBUTE "endianness" {
+      DATATYPE  H5T_STRING {
+         STRSIZE H5T_VARIABLE;
+         STRPAD H5T_STR_NULLTERM;
+         CSET H5T_CSET_ASCII;
+         CTYPE H5T_C_S1;
+      }
+      DATASPACE  SCALAR
+   }
+   ATTRIBUTE "format" {
+      DATATYPE  H5T_STRING {
+         STRSIZE H5T_VARIABLE;
+         STRPAD H5T_STR_NULLTERM;
+         CSET H5T_CSET_ASCII;
+         CTYPE H5T_C_S1;
+      }
+      DATASPACE  SCALAR
+   }
+   ATTRIBUTE "generation" {
+      DATATYPE  H5T_STRING {
+         STRSIZE H5T_VARIABLE;
+         STRPAD H5T_STR_NULLTERM;
+         CSET H5T_CSET_ASCII;
+         CTYPE H5T_C_S1;
+      }
+      DATASPACE  SCALAR
+   }
+   ATTRIBUTE "geometry" {
+      DATATYPE  H5T_STRING {
+         STRSIZE H5T_VARIABLE;
+         STRPAD H5T_STR_NULLTERM;
+         CSET H5T_CSET_ASCII;
+         CTYPE H5T_C_S1;
+      }
+      DATASPACE  SCALAR
+   }
+   ATTRIBUTE "plugin_integrator_name" {
+      DATATYPE  H5T_STRING {
+         STRSIZE H5T_VARIABLE;
+         STRPAD H5T_STR_NULLTERM;
+         CSET H5T_CSET_ASCII;
+         CTYPE H5T_C_S1;
+      }
+      DATASPACE  SCALAR
+   }
+   ATTRIBUTE "sensor_generation" {
+      DATATYPE  H5T_STRING {
+         STRSIZE H5T_VARIABLE;
+         STRPAD H5T_STR_NULLTERM;
+         CSET H5T_CSET_ASCII;
+         CTYPE H5T_C_S1;
+      }
+      DATASPACE  SCALAR
+   }
+   ATTRIBUTE "sensor_name" {
+      DATATYPE  H5T_STRING {
+         STRSIZE H5T_VARIABLE;
+         STRPAD H5T_STR_NULLTERM;
+         CSET H5T_CSET_ASCII;
+         CTYPE H5T_C_S1;
+      }
+      DATASPACE  SCALAR
+   }
+   ATTRIBUTE "serial_number" {
+      DATATYPE  H5T_STRING {
+         STRSIZE H5T_VARIABLE;
+         STRPAD H5T_STR_NULLTERM;
+         CSET H5T_CSET_ASCII;
+         CTYPE H5T_C_S1;
+      }
+      DATASPACE  SCALAR
+   }
+   ATTRIBUTE "version" {
+      DATATYPE  H5T_STRING {
+         STRSIZE H5T_VARIABLE;
+         STRPAD H5T_STR_NULLTERM;
+         CSET H5T_CSET_ASCII;
+         CTYPE H5T_C_S1;
+      }
+      DATASPACE  SCALAR
+   }
+   GROUP "CD" {
+      DATASET "events" {
+         DATATYPE  H5T_COMPOUND {
+            H5T_STD_U16LE "x";
+            H5T_STD_U16LE "y";
+            H5T_STD_I16LE "p";
+            H5T_STD_I64LE "t";
+         }
+         DATASPACE  SIMPLE { ( 163055 ) / ( H5S_UNLIMITED ) }
+      }
+      DATASET "indexes" {
+         DATATYPE  H5T_COMPOUND {
+            H5T_STD_U64LE "id";
+            H5T_STD_I64LE "ts";
+         }
+         DATASPACE  SIMPLE { ( 499 ) / ( H5S_UNLIMITED ) }
+         ATTRIBUTE "offset" {
+            DATATYPE  H5T_STRING {
+               STRSIZE H5T_VARIABLE;
+               STRPAD H5T_STR_NULLTERM;
+               CSET H5T_CSET_ASCII;
+               CTYPE H5T_C_S1;
+            }
+            DATASPACE  SCALAR
+         }
+      }
+   }
+   GROUP "EXT_TRIGGER" {
+      DATASET "events" {
+         DATATYPE  H5T_COMPOUND {
+            H5T_STD_I16LE "p";
+            H5T_STD_I64LE "t";
+            H5T_STD_I16LE "id";
+         }
+         DATASPACE  SIMPLE { ( 0 ) / ( H5S_UNLIMITED ) }
+      }
+      DATASET "indexes" {
+         DATATYPE  H5T_COMPOUND {
+            H5T_STD_U64LE "id";
+            H5T_STD_I64LE "ts";
+         }
+         DATASPACE  SIMPLE { ( 0 ) / ( H5S_UNLIMITED ) }
+      }
+   }
+}
+}
