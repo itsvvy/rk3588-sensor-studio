@@ -1,0 +1,4 @@
+*.raw binary
+*.mkv binary
+*.tmp_index binary
+*.zarr/** binary

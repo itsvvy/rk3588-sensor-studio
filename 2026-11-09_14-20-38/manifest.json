@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "session_id": "2026-11-09_14-20-38",
+  "session_dir": "/home/astri/2026-11-09_14-20-38",
+  "synthetic": false,
+  "name": null,
+  "status": "complete",
+  "started_at_utc": "2026-11-09T06:20:39.011726+00:00",
+  "ended_at_utc": "2026-11-09T06:20:44.529627+00:00",
+  "start_monotonic_ns": 181877925331,
+  "start_unix_ns": 1794205239011725720,
+  "end_monotonic_ns": 187395824298,
+  "end_unix_ns": 1794205244529626728,
+  "config": {
+    "backend": "hardware",
+    "dvs_serial": "",
+    "dvs_event_rate": 0,
+    "dvs_backend": "auto",
+    "cis_device": "/dev/v4l/by-id/usb-USB_Camera_USB_Camera_01.00.00-video-index0",
+    "cis_mode": "2560x720 JPEG @ 25fps -> H.264 MKV",
+    "imu_device": "/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0",
+    "imu_baud": 115200
+  },
+  "files": {
+    "dvs": {
+      "path": "dvs/events.raw",
+      "exists": true,
+      "size_bytes": 49060794
+    },
+    "cis": {
+      "path": "cis/stereo.mkv",
+      "exists": true,
+      "size_bytes": 2427517
+    },
+    "cis_frames": {
+      "path": "cis/frames.csv",
+      "exists": true,
+      "size_bytes": 4266
+    },
+    "imu": {
+      "path": "imu/imu.zarr",
+      "exists": true,
+      "size_bytes": null
+    },
+    "clock_anchors": {
+      "path": "sync/clock_anchors.csv",
+      "exists": true,
+      "size_bytes": 609
+    }
+  },
+  "streams": {
+    "dvs": {
+      "ready": true,
+      "error": null,
+      "width": 320,
+      "height": 320,
+      "event_slices": 45076,
+      "events": 14226471,
+      "last_device_t_us": 8399999,
+      "transport": "openeb_hal_native_callback",
+      "preview_backend": "native",
+      "event_rate_limit": 0
+    },
+    "cis": {
+      "ready": true,
+      "error": null,
+      "synthetic": false,
+      "width": 2560,
+      "height": 720,
+      "fps": 25,
+      "preview": true,
+      "preview_frames": 215,
+      "recorded_frames": 88,
+      "last_pts_ns": 9354585582,
+      "encoder": "mpph264enc",
+      "decoder": "mppjpegdec"
+    },
+    "imu": {
+      "ready": true,
+      "error": null,
+      "synthetic": false,
+      "device": "/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0",
+      "baudrate": 115200,
+      "counts": {
+        "accel": 996,
+        "gyro": 996,
+        "angle": 996
+      },
+      "reconnects": 2
+    }
+  },
+  "clock_anchor": {
+    "monotonic_ns": 181877925331,
+    "unix_ns": 1794205239011725720
+  },
+  "errors": [],
+  "last_error": null
+}

@@ -1,0 +1,6 @@
+__pycache__/
+*.py[cod]
+*.so
+.pytest_cache/
+.DS_Store
+/2026-11-09_14-20-38/imu/imu.zarr/accel/c/0/0 (2)
