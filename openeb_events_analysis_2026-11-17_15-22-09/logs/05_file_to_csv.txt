@@ -1,0 +1,2 @@
+Writing to /home/astri/openeb_events_analysis_2026-11-17_15-22-09/csv/events_0_1s.csv
+Writing CSV file...Done!                    

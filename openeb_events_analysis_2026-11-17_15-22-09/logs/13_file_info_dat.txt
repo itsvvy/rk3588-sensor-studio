@@ -1,0 +1,13 @@
+Analyzing file...Analyzing file   ====================================================================================================
+
+Name                events_0_1s_cd.dat
+Path                /home/astri/openeb_events_analysis_2026-11-17_15-22-09/dat/events_0_1s_cd.dat
+Duration            995ms 585us 
+Data encoding       ECF
+Camera generation   3.0
+
+====================================================================================================
+
+Type of event       Number of events    First timestamp     Last timestamp      Average event rate  
+----------------------------------------------------------------------------------------------------
+CD                  163055              13                  995585              163.8 Kev/s         

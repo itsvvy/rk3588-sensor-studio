@@ -49,6 +49,23 @@ The DVS manifest count matches the event count reported by
 counters when recording starts so each manifest describes the recording
 session.
 
+### OpenEB event-tool compatibility analysis
+
+[`openeb_events_analysis_2026-11-17_15-22-09/`](openeb_events_analysis_2026-11-17_15-22-09/)
+validates the DVS output from the current capture with OpenEB 5.2.0
+(`6b132be062c18828466846de91f8de95bbf73284`).
+
+- The complete RAW file is recognized as EVT21, GenX320MP, 320x320.
+- OpenEB decoded all 5,746,637 CD events over 8.520 seconds.
+- RAW cutting, CSV/HDF5/DAT conversion, event video generation, and
+  Diff/Histo event-frame generation all completed successfully.
+- The derived 0-1 second sample contains 163,055 CD events and is used to
+  demonstrate every supported output path.
+
+Commands, logs, checksums, representative images, and converted outputs are
+documented in the
+[analysis README](openeb_events_analysis_2026-11-17_15-22-09/README.md).
+
 ## Versioning
 
 `main` contains the currently accepted runnable baseline for this RK3588

@@ -1,4 +1,8 @@
 *.raw binary
 *.mkv binary
+*.avi binary
+*.hdf5 binary
+*.dat binary
+*.png binary
 *.tmp_index binary
 *.zarr/** binary
