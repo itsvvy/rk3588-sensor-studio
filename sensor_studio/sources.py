@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-import json
 import logging
 import math
-import os
-import queue
 import struct
 import threading
 import time
@@ -20,172 +17,20 @@ from .recording import SessionRecorder, monotonic_ns, unix_ns
 log = logging.getLogger(__name__)
 
 
-class _ZarrV3ArrayWriter:
-    """Minimal uncompressed Zarr v3 array writer for append-only numeric data."""
-
-    def __init__(
-        self,
-        path: Path,
-        *,
-        trailing_shape: tuple[int, ...],
-        dtype: str,
-        chunk_rows: int = 256,
-    ) -> None:
-        self.path = path
-        self.trailing_shape = trailing_shape
-        self.dtype = np.dtype(dtype)
-        self.chunk_rows = chunk_rows
-        self.shape = [0, *trailing_shape]
-        self._chunk_index = 0
-        self._buffered_rows = 0
-        self._buffer = np.zeros(
-            (chunk_rows, *trailing_shape),
-            dtype=self.dtype,
-        )
-        (path / "c").mkdir(parents=True, exist_ok=False)
-        self._write_metadata()
-
-    def append(self, values: list[Any] | np.ndarray) -> None:
-        rows = np.asarray(values, dtype=self.dtype)
-        expected_tail = tuple(self.shape[1:])
-        if rows.ndim != len(self.trailing_shape) + 1 or rows.shape[1:] != expected_tail:
-            raise ValueError(
-                f"unexpected array shape {rows.shape}, expected (*, {expected_tail})"
-            )
-        offset = 0
-        while offset < len(rows):
-            room = self.chunk_rows - self._buffered_rows
-            count = min(room, len(rows) - offset)
-            self._buffer[
-                self._buffered_rows : self._buffered_rows + count
-            ] = rows[offset : offset + count]
-            self._buffered_rows += count
-            offset += count
-            self.shape[0] += count
-            if self._buffered_rows == self.chunk_rows:
-                self._write_chunk()
-                self._chunk_index += 1
-                self._buffered_rows = 0
-                self._buffer.fill(0)
-        self._write_chunk()
-        self._write_metadata()
-
-    def close(self) -> None:
-        self._write_chunk()
-        self._write_metadata()
-
-    def _write_chunk(self) -> None:
-        path = self.path / "c" / str(self._chunk_index)
-        temporary = path.with_suffix(".tmp")
-        temporary.write_bytes(self._buffer.tobytes(order="C"))
-        os.replace(temporary, path)
-
-    def _write_metadata(self) -> None:
-        payload = {
-            "shape": self.shape,
-            "data_type": np.dtype(self.dtype).name,
-            "chunk_grid": {
-                "name": "regular",
-                "configuration": {
-                    "chunk_shape": [self.chunk_rows, *self.trailing_shape]
-                },
-            },
-            "chunk_key_encoding": {
-                "name": "default",
-                "configuration": {"separator": "/"},
-            },
-            "fill_value": 0,
-            "codecs": [
-                {
-                    "name": "bytes",
-                    "configuration": {"endian": "little"},
-                }
-            ],
-            "attributes": {},
-            "zarr_format": 3,
-            "node_type": "array",
-            "storage_transformers": [],
-        }
-        self._write_json_atomic(self.path / "zarr.json", payload)
-
-    @staticmethod
-    def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
-        temporary = path.with_suffix(".json.tmp")
-        temporary.write_text(
-            json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-        )
-        os.replace(temporary, path)
-
-
-class _ImuZarrWriter:
-    """Serializes Zarr appends on a writer thread, away from serial sampling."""
-
-    _STOP = object()
-
-    def __init__(
-        self,
-        stores: dict[str, _ZarrV3ArrayWriter],
-        timestamp_stores: dict[str, _ZarrV3ArrayWriter],
-        on_error,
-    ) -> None:
-        self._stores = stores
-        self._timestamp_stores = timestamp_stores
-        self._on_error = on_error
-        self._queue: queue.Queue = queue.Queue(maxsize=64)
-        self._error: Exception | None = None
-        self._thread = threading.Thread(
-            target=self._run,
-            name="sensor-studio-imu-writer",
-            daemon=True,
-        )
-        self._thread.start()
-
-    def enqueue(
-        self,
-        batch: dict[str, tuple[list[list[int]], list[int]]],
-    ) -> None:
-        if self._error is not None:
-            raise RuntimeError(f"IMU Zarr writer failed: {self._error}")
-        try:
-            self._queue.put_nowait(batch)
-        except queue.Full as exc:
-            raise RuntimeError("IMU Zarr writer queue is full") from exc
-
-    def _run(self) -> None:
-        while True:
-            item = self._queue.get()
-            try:
-                if item is self._STOP:
-                    return
-                for name, (rows, timestamps) in item.items():
-                    if not rows:
-                        continue
-                    self._stores[name].append(rows)
-                    self._timestamp_stores[name].append(timestamps)
-            except Exception as exc:
-                self._error = exc
-                self._on_error(f"IMU Zarr写入失败: {exc}")
-            finally:
-                self._queue.task_done()
-
-    def close(self) -> None:
-        try:
-            self._queue.put(self._STOP, timeout=5.0)
-        except queue.Full as exc:
-            raise RuntimeError("IMU Zarr writer queue did not drain") from exc
-        self._thread.join(timeout=10.0)
-        if self._thread.is_alive():
-            raise RuntimeError("IMU Zarr writer did not stop within 10 seconds")
-        if self._error is not None:
-            raise RuntimeError(f"IMU Zarr writer failed: {self._error}")
-        for store in (*self._stores.values(), *self._timestamp_stores.values()):
-            store.close()
-
-
 def prewarm_recording_backends() -> None:
-    """Recording backends are lightweight; no process-wide import is required."""
-    return
+    """Initialize Zarr before DVS/GStreamer callback threads start."""
+    import zarr
+
+    store = zarr.storage.MemoryStore()
+    root = zarr.open(store=store, mode="w")
+    for name in ImuSource.SENSORS:
+        root.create_array(name, shape=(0, 3), chunks=(256, 3), dtype="i2")
+        root.create_array(
+            f"{name}_timestamp_ns",
+            shape=(0,),
+            chunks=(256,),
+            dtype="i8",
+        )
 
 
 class SourceBase:
@@ -248,8 +93,6 @@ class DvsSource(SourceBase):
         self._slice_count = 0
         self._event_count = 0
         self._record_start_ns = 0
-        self._record_first_host_ns = 0
-        self._record_last_host_ns = 0
         self._last_device_t_us = 0
         self._frame_lock = threading.Lock()
         self._events_lock = threading.Lock()
@@ -416,20 +259,20 @@ class DvsSource(SourceBase):
                             self._last_device_t_us = timestamp_us
                             now_mono = monotonic_ns()
                             with self._record_lock:
-                                if self._recording and self._session is not None:
-                                    self._record_last_host_ns = now_mono
-                                    if (
-                                        now_mono - self._last_anchor_mono_ns
-                                        >= 1_000_000_000
-                                    ):
-                                        self._session.add_anchor(
-                                            "dvs",
-                                            self._slice_count,
-                                            self._last_device_t_us * 1000,
-                                            now_mono,
-                                            unix_ns(),
-                                        )
-                                        self._last_anchor_mono_ns = now_mono
+                                if (
+                                    self._recording
+                                    and self._session is not None
+                                    and now_mono - self._last_anchor_mono_ns
+                                    >= 1_000_000_000
+                                ):
+                                    self._session.add_anchor(
+                                        "dvs",
+                                        self._slice_count,
+                                        self._last_device_t_us * 1000,
+                                        now_mono,
+                                        unix_ns(),
+                                    )
+                                    self._last_anchor_mono_ns = now_mono
                     self._first_buffer.set()
                 else:
                     time.sleep(0.001)
@@ -455,23 +298,12 @@ class DvsSource(SourceBase):
             self._stream.log_raw_data(str(session.paths.dvs))
             self._slice_count = 0
             self._event_count = 0
-            now_mono = monotonic_ns()
-            now_unix = unix_ns()
-            self._record_first_host_ns = now_mono
-            self._record_last_host_ns = now_mono
             if self._frame_builder is not None:
                 self._frame_builder.reset_stats()
             self._session = session
-            self._record_start_ns = now_mono
-            self._last_anchor_mono_ns = now_mono
+            self._record_start_ns = monotonic_ns()
+            self._last_anchor_mono_ns = 0
             self._recording = True
-            session.add_anchor(
-                "dvs",
-                0,
-                self._last_device_t_us * 1000,
-                now_mono,
-                now_unix,
-            )
 
     def stop_recording(self) -> None:
         with self._record_lock:
@@ -480,16 +312,6 @@ class DvsSource(SourceBase):
             self._recording = False
             session = self._session
             self._session = None
-            last_device_t_us = self._last_device_t_us
-            self._record_last_host_ns = monotonic_ns()
-            if session is not None:
-                session.add_anchor(
-                    "dvs",
-                    self._slice_count,
-                    last_device_t_us * 1000,
-                    self._record_last_host_ns,
-                    unix_ns(),
-                )
         self._stop.set()
         # Stop the USB transfer first. On this USB2 setup,
         # stop_log_raw_data() can otherwise wait indefinitely for in-flight URBs.
@@ -549,8 +371,6 @@ class DvsSource(SourceBase):
             "event_slices": native_stats.get("callback_count", self._slice_count),
             "events": native_stats.get("event_count", self._event_count),
             "last_device_t_us": self._last_device_t_us,
-            "first_host_monotonic_ns": self._record_first_host_ns,
-            "last_host_monotonic_ns": self._record_last_host_ns,
             "transport": (
                 "openeb_hal_native_callback"
                 if self.backend == "native"
@@ -575,8 +395,6 @@ class SyntheticDvsSource(SourceBase):
         self._record_file = None
         self._record_start_mono_ns = 0
         self._record_start_unix_ns = 0
-        self._record_first_host_ns = 0
-        self._record_last_host_ns = 0
         self._last_anchor_ns = 0
         self._record_count = 0
         self._record_file_lock = threading.Lock()
@@ -608,7 +426,6 @@ class SyntheticDvsSource(SourceBase):
                 if self._record_file is not None:
                     mono = monotonic_ns()
                     unix = unix_ns()
-                    self._record_last_host_ns = mono
                     self._record_file.write(
                         f"{mono},{unix},{x},{y}\n".encode("ascii")
                     )
@@ -623,8 +440,6 @@ class SyntheticDvsSource(SourceBase):
         assert session.paths is not None
         self._record_start_mono_ns = monotonic_ns()
         self._record_start_unix_ns = unix_ns()
-        self._record_first_host_ns = self._record_start_mono_ns
-        self._record_last_host_ns = self._record_start_mono_ns
         self._last_anchor_ns = 0
         self._record_count = 0
         self._record_file = session.paths.dvs.open("wb")
@@ -663,8 +478,6 @@ class SyntheticDvsSource(SourceBase):
             "height": self.height,
             "synthetic": True,
             "events": self._record_count,
-            "first_host_monotonic_ns": self._record_first_host_ns,
-            "last_host_monotonic_ns": self._record_last_host_ns,
         }
 
 
@@ -693,22 +506,14 @@ class CisSource(SourceBase):
         self._preview_sink = None
         self._timestamp_probe_id = None
         self._timestamp_pad = None
-        self._timestamp_drain_pad = None
         self._first_frame = threading.Event()
         self._recording = False
         self._session: SessionRecorder | None = None
         self._record_elements: list[Any] = []
         self._record_tee_pad = None
-        self._record_probe_id = None
-        self._record_probe_pad = None
         self._record_frame_index = 0
         self._total_frames = 0
         self._last_pts_ns = 0
-        self._record_first_host_ns = 0
-        self._record_last_host_ns = 0
-        self._source_pts_timing: dict[int, tuple[int, int]] = {}
-        self._source_pts_order: deque[int] = deque()
-        self._stopping = False
         self._record_lock = threading.RLock()
         self._Gst = None
 
@@ -767,15 +572,6 @@ class CisSource(SourceBase):
                 if not left.link(right):
                     raise RuntimeError(f"GStreamer无法连接 {left.get_name()} -> {right.get_name()}")
 
-            # Capture timing at the source pad, before JPEG decode and tee
-            # scheduling can add variable processing latency.
-            self._timestamp_pad = source.get_static_pad("src")
-            if self._timestamp_pad is None:
-                raise RuntimeError("CIS采集源没有输出pad")
-            self._timestamp_probe_id = self._timestamp_pad.add_probe(
-                Gst.PadProbeType.BUFFER, self._on_buffer
-            )
-
             timestamp_queue = self._make("queue", "timestamp-queue")
             timestamp_queue.set_property("max-size-buffers", 1)
             timestamp_queue.set_property("leaky", 2)
@@ -784,7 +580,10 @@ class CisSource(SourceBase):
             timestamp_pad = self._link_tee_branch(
                 [timestamp_queue, timestamp_sink], "timestamp"
             )
-            self._timestamp_drain_pad = timestamp_pad
+            self._timestamp_probe_id = timestamp_pad.add_probe(
+                Gst.PadProbeType.BUFFER, self._on_buffer
+            )
+            self._timestamp_pad = timestamp_pad
             if self.show_preview:
                 preview_queue = self._make("queue", "cis-preview-queue")
                 preview_queue.set_property("max-size-buffers", 2)
@@ -868,43 +667,17 @@ class CisSource(SourceBase):
             self._last_pts_ns = pts
             self._first_frame.set()
             with self._record_lock:
-                self._source_pts_timing[pts] = (host_mono, host_unix)
-                self._source_pts_order.append(pts)
-                while len(self._source_pts_order) > 512:
-                    expired = self._source_pts_order.popleft()
-                    self._source_pts_timing.pop(expired, None)
-            return self._Gst.PadProbeReturn.OK
-        except Exception as exc:
-            self._set_error(f"CIS帧处理异常: {exc}")
-            return self._Gst.PadProbeReturn.DROP
-
-    def _on_record_buffer(self, _pad, info):
-        buffer = info.get_buffer()
-        if buffer is None:
-            return self._Gst.PadProbeReturn.OK
-        try:
-            pts = int(buffer.pts)
-            if pts == int(self._Gst.CLOCK_TIME_NONE):
-                pts = 0
-            with self._record_lock:
                 if self._recording and self._session is not None:
-                    source_mono, source_unix = self._source_pts_timing.get(
-                        pts,
-                        (monotonic_ns(), unix_ns()),
-                    )
                     self._record_frame_index += 1
-                    if self._record_first_host_ns == 0:
-                        self._record_first_host_ns = source_mono
-                    self._record_last_host_ns = source_mono
                     self._session.add_cis_frame(
                         self._record_frame_index,
                         pts,
-                        source_mono,
-                        source_unix,
+                        host_mono,
+                        host_unix,
                     )
             return self._Gst.PadProbeReturn.OK
         except Exception as exc:
-            self._set_error(f"CIS录制帧处理异常: {exc}")
+            self._set_error(f"CIS帧处理异常: {exc}")
             return self._Gst.PadProbeReturn.DROP
 
     def latest_frame(self) -> np.ndarray | None:
@@ -981,33 +754,14 @@ class CisSource(SourceBase):
                         raise RuntimeError(
                             f"无法连接录制元素 {left.get_name()} -> {right.get_name()}"
                         )
-                self._record_probe_pad = queue_element.get_static_pad("sink")
-                if self._record_probe_pad is None:
-                    raise RuntimeError("CIS录制queue缺少输入pad")
-                self._record_probe_id = self._record_probe_pad.add_probe(
-                    self._Gst.PadProbeType.BUFFER,
-                    self._on_record_buffer,
-                )
+                for element in elements:
+                    element.sync_state_with_parent()
                 self._record_elements = elements
                 self._record_tee_pad = tee_pad
                 self._session = session
                 self._record_frame_index = 0
-                self._record_first_host_ns = 0
-                self._record_last_host_ns = 0
-                self._source_pts_timing.clear()
-                self._source_pts_order.clear()
-                self._stopping = False
                 self._recording = True
-                for element in elements:
-                    element.sync_state_with_parent()
             except Exception:
-                self._recording = False
-                self._record_elements = []
-                self._record_tee_pad = None
-                self._session = None
-                self._record_probe_id = None
-                self._record_probe_pad = None
-                self._stopping = False
                 if tee_pad is not None:
                     try:
                         tee_pad.unlink(queue_element.get_static_pad("sink"))
@@ -1024,13 +778,11 @@ class CisSource(SourceBase):
 
     def stop_recording(self) -> None:
         with self._record_lock:
-            if not self._recording or self._stopping:
+            if not self._recording:
                 return
-            self._stopping = True
+            self._recording = False
             tee_pad = self._record_tee_pad
             elements = list(self._record_elements)
-            probe_pad = self._record_probe_pad
-            probe_id = self._record_probe_id
             error: Exception | None = None
             try:
                 if tee_pad is None:
@@ -1060,11 +812,6 @@ class CisSource(SourceBase):
             except Exception as exc:
                 error = exc
             finally:
-                if probe_pad is not None and probe_id is not None:
-                    try:
-                        probe_pad.remove_probe(probe_id)
-                    except Exception:
-                        pass
                 if tee_pad is not None and elements:
                     try:
                         tee_pad.unlink(elements[0].get_static_pad("sink"))
@@ -1083,11 +830,7 @@ class CisSource(SourceBase):
                         pass
                 self._record_elements = []
                 self._record_tee_pad = None
-                self._record_probe_id = None
-                self._record_probe_pad = None
                 self._session = None
-                self._recording = False
-                self._stopping = False
             if error is not None:
                 raise error
 
@@ -1113,7 +856,6 @@ class CisSource(SourceBase):
         self._preview_sink = None
         self._timestamp_probe_id = None
         self._timestamp_pad = None
-        self._timestamp_drain_pad = None
         self._tee = None
 
     def stats(self) -> dict[str, Any]:
@@ -1128,9 +870,6 @@ class CisSource(SourceBase):
             "preview_frames": self._total_frames,
             "recorded_frames": self._record_frame_index,
             "last_pts_ns": self._last_pts_ns,
-            "first_host_monotonic_ns": self._record_first_host_ns,
-            "last_host_monotonic_ns": self._record_last_host_ns,
-            "timestamp_point": "source_pad",
             "encoder": getattr(self, "encoder_name", None),
             "decoder": getattr(self, "decoder_name", None),
         }
@@ -1163,7 +902,6 @@ class ImuSource(SourceBase):
         self._record_root = None
         self._record_stores: dict[str, Any] = {}
         self._record_ts_stores: dict[str, Any] = {}
-        self._record_writer: _ImuZarrWriter | None = None
         self._pending: dict[str, list[list[int]]] = {
             name: [] for name in self.SENSORS
         }
@@ -1173,8 +911,6 @@ class ImuSource(SourceBase):
         self._last_flush_ns = 0
         self._counts = {name: 0 for name in self.SENSORS}
         self._last_anchor_ns = 0
-        self._record_first_host_ns = 0
-        self._record_last_host_ns = 0
         self._reconnect_count = 0
 
     def open(self) -> None:
@@ -1203,12 +939,9 @@ class ImuSource(SourceBase):
                 self._pending[name].append([int(v) for v in values])
                 self._pending_ts[name].append(mono)
                 self._counts[name] += 1
-                if self._record_first_host_ns == 0:
-                    self._record_first_host_ns = mono
-                self._record_last_host_ns = mono
                 total_pending = sum(len(self._pending[s]) for s in self.SENSORS)
                 if total_pending >= 256 or mono - self._last_flush_ns >= 250_000_000:
-                    self._enqueue_pending_locked()
+                    self._flush_pending_locked()
                 if mono - self._last_anchor_ns >= 1_000_000_000:
                     self._record_session.add_anchor("imu", self._counts[name], mono, mono, unix)
                     self._last_anchor_ns = mono
@@ -1296,71 +1029,59 @@ class ImuSource(SourceBase):
 
     def start_recording(self, session: SessionRecorder) -> None:
         assert session.paths is not None
+        started_ns = monotonic_ns()
+        import zarr
+        session.log(
+            f"IMU zarr import completed; "
+            f"elapsed_ms={(monotonic_ns() - started_ns) / 1e6:.1f}"
+        )
+
         with self._sample_lock:
             if self._record_active:
                 return
-
-        open_started_ns = monotonic_ns()
-        session.paths.imu.mkdir(parents=False, exist_ok=False)
-        session.log(
-            f"IMU zarr opened; "
-            f"elapsed_ms={(monotonic_ns() - open_started_ns) / 1e6:.1f}"
-        )
-        arrays_started_ns = monotonic_ns()
-        stores = {}
-        ts_stores = {}
-        for name in self.SENSORS:
-            stores[name] = _ZarrV3ArrayWriter(
-                session.paths.imu / name,
-                trailing_shape=(3,),
-                dtype="<i2",
+            open_started_ns = monotonic_ns()
+            root = zarr.open(str(session.paths.imu), mode="w")
+            session.log(
+                f"IMU zarr opened; "
+                f"elapsed_ms={(monotonic_ns() - open_started_ns) / 1e6:.1f}"
             )
-            ts_stores[name] = _ZarrV3ArrayWriter(
-                session.paths.imu / f"{name}_timestamp_ns",
-                trailing_shape=(),
-                dtype="<i8",
-            )
-
-        with self._sample_lock:
+            arrays_started_ns = monotonic_ns()
+            stores = {}
+            ts_stores = {}
+            for name in self.SENSORS:
+                stores[name] = root.create_array(
+                    name, shape=(0, 3), chunks=(256, 3), dtype="i2"
+                )
+                ts_stores[name] = root.create_array(
+                    f"{name}_timestamp_ns", shape=(0,), chunks=(256,), dtype="i8"
+                )
             anchor_mono = monotonic_ns()
             anchor_unix = unix_ns()
-            _ZarrV3ArrayWriter._write_json_atomic(
-                session.paths.imu / "zarr.json",
+            root.attrs.update(
                 {
-                    "attributes": {
-                        "sensor": "JY931",
-                        "device": self.device,
-                        "baudrate": self.baudrate,
-                        "synthetic": self.synthetic,
-                        "sensor_type": list(self.SENSORS),
-                        "data_format": "raw int16 X/Y/Z",
-                        "timestamp_format": "host monotonic nanoseconds",
-                        "clock_anchor_monotonic_ns": anchor_mono,
-                        "clock_anchor_unix_ns": anchor_unix,
-                        "accel_scale": "raw/32768*16 g",
-                        "gyro_scale": "raw/32768*2000 deg/s",
-                        "angle_scale": "raw/32768*180 deg",
-                        "created_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
-                    },
-                    "zarr_format": 3,
-                    "node_type": "group",
-                },
+                    "sensor": "JY931",
+                    "device": self.device,
+                    "baudrate": self.baudrate,
+                    "synthetic": self.synthetic,
+                    "sensor_type": list(self.SENSORS),
+                    "data_format": "raw int16 X/Y/Z",
+                    "timestamp_format": "host monotonic nanoseconds",
+                    "clock_anchor_monotonic_ns": anchor_mono,
+                    "clock_anchor_unix_ns": anchor_unix,
+                    "accel_scale": "raw/32768*16 g",
+                    "gyro_scale": "raw/32768*2000 deg/s",
+                    "angle_scale": "raw/32768*180 deg",
+                    "created_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+                }
             )
-            self._record_root = session.paths.imu
+            self._record_root = root
             self._record_stores = stores
             self._record_ts_stores = ts_stores
-            self._record_writer = _ImuZarrWriter(
-                stores,
-                ts_stores,
-                self._set_error,
-            )
             self._record_session = session
             self._pending = {name: [] for name in self.SENSORS}
             self._pending_ts = {name: [] for name in self.SENSORS}
             self._counts = {name: 0 for name in self.SENSORS}
             self._record_active = True
-            self._record_first_host_ns = 0
-            self._record_last_host_ns = 0
             self._last_flush_ns = monotonic_ns()
             self._last_anchor_ns = self._last_flush_ns
             session.log(
@@ -1369,31 +1090,28 @@ class ImuSource(SourceBase):
             )
             session.add_anchor("imu", 0, anchor_mono, anchor_mono, anchor_unix)
 
-    def _enqueue_pending_locked(self) -> None:
-        if not self._record_active or self._record_writer is None:
-            return
-        batch = {
-            name: (
-                self._pending[name],
-                self._pending_ts[name],
-            )
-            for name in self.SENSORS
-            if self._pending[name]
-        }
-        if not batch:
-            return
-        try:
-            self._record_writer.enqueue(batch)
-        except Exception as exc:
-            self._set_error(f"IMU Zarr写入失败: {exc}")
-            return
-        self._pending = {name: [] for name in self.SENSORS}
-        self._pending_ts = {name: [] for name in self.SENSORS}
-        self._last_flush_ns = monotonic_ns()
-
     def _flush_pending_locked(self) -> None:
-        """Compatibility name retained for the explicit final flush."""
-        self._enqueue_pending_locked()
+        if not self._record_active:
+            return
+        for name in self.SENSORS:
+            if not self._pending[name]:
+                continue
+            rows = self._pending[name]
+            timestamps = self._pending_ts[name]
+            try:
+                store = self._record_stores[name]
+                ts_store = self._record_ts_stores[name]
+                store.resize((store.shape[0] + len(rows), 3))
+                store[-len(rows) :] = np.asarray(rows, dtype=np.int16)
+                ts_store.resize((ts_store.shape[0] + len(timestamps),))
+                ts_store[-len(timestamps) :] = np.asarray(
+                    timestamps, dtype=np.int64
+                )
+                self._pending[name] = []
+                self._pending_ts[name] = []
+            except Exception as exc:
+                self._set_error(f"IMU Zarr写入失败: {exc}")
+        self._last_flush_ns = monotonic_ns()
 
     def stop_recording(self) -> None:
         with self._sample_lock:
@@ -1401,20 +1119,10 @@ class ImuSource(SourceBase):
                 return
             self._flush_pending_locked()
             self._record_active = False
-            writer = self._record_writer
-            session = self._record_session
-            self._record_writer = None
+        with self._sample_lock:
+            if self._record_session is not None:
+                self._record_session.log("IMU Zarr writer stopped")
             self._record_session = None
-        error: Exception | None = None
-        if writer is not None:
-            try:
-                writer.close()
-            except Exception as exc:
-                error = exc
-        if session is not None:
-            session.log("IMU Zarr writer stopped")
-        if error is not None:
-            raise error
 
     def close(self) -> None:
         self.stop_recording()
@@ -1438,8 +1146,5 @@ class ImuSource(SourceBase):
             "baudrate": self.baudrate,
             "counts": dict(self._counts),
             "reconnects": self._reconnect_count,
-            "first_host_monotonic_ns": self._record_first_host_ns,
-            "last_host_monotonic_ns": self._record_last_host_ns,
-            "writer": "threaded_queue",
         }
 

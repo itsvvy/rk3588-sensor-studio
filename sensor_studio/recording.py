@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 1
 
 
 class RecordingError(RuntimeError):
@@ -70,7 +70,6 @@ class SessionPaths:
     cis_frames: Path
     imu: Path
     clock_anchors: Path
-    sync_window: Path
     log: Path
 
 
@@ -94,11 +93,8 @@ class SessionRecorder:
         self.errors: list[dict[str, Any]] = []
         self.start_monotonic_ns = 0
         self.start_unix_ns = 0
-        self.created_monotonic_ns = 0
-        self.created_unix_ns = 0
         self.end_monotonic_ns: int | None = None
         self.end_unix_ns: int | None = None
-        self.sync_info: dict[str, Any] | None = None
         self._frames_file = None
         self._anchors_file = None
         self._frames_writer: csv.writer | None = None
@@ -140,7 +136,6 @@ class SessionRecorder:
             cis_frames=session_dir / "cis" / "frames.csv",
             imu=session_dir / "imu" / "imu.zarr",
             clock_anchors=session_dir / "sync" / "clock_anchors.csv",
-            sync_window=session_dir / "sync" / "window.json",
             log=session_dir / "logs" / "session.log",
         )
 
@@ -172,46 +167,19 @@ class SessionRecorder:
             raise RecordingError(f"无法创建会话目录或时间戳文件: {exc}") from exc
 
         self.paths = paths
-        self.created_monotonic_ns = monotonic_ns()
-        self.created_unix_ns = unix_ns()
-        self.start_monotonic_ns = self.created_monotonic_ns
-        self.start_unix_ns = self.created_unix_ns
+        self.start_monotonic_ns = monotonic_ns()
+        self.start_unix_ns = unix_ns()
         self.status = "preparing"
         self.log(f"session created; synthetic={self.synthetic}")
         self._write_manifest()
 
-    def mark_recording_started(
-        self,
-        *,
-        monotonic_ns_value: int | None = None,
-        unix_ns_value: int | None = None,
-    ) -> None:
+    def mark_recording_started(self) -> None:
         with self._lock:
-            self.start_monotonic_ns = (
-                monotonic_ns() if monotonic_ns_value is None else monotonic_ns_value
-            )
-            self.start_unix_ns = (
-                unix_ns() if unix_ns_value is None else unix_ns_value
-            )
+            self.start_monotonic_ns = monotonic_ns()
+            self.start_unix_ns = unix_ns()
             self.status = "recording"
             self.log("recording started")
             self._write_manifest()
-
-    def mark_recording_stopped(
-        self,
-        *,
-        monotonic_ns_value: int,
-        unix_ns_value: int,
-    ) -> None:
-        with self._lock:
-            self.end_monotonic_ns = monotonic_ns_value
-            self.end_unix_ns = unix_ns_value
-            self.log("recording stop requested")
-            self._write_manifest()
-
-    def set_sync_info(self, sync_info: dict[str, Any]) -> None:
-        with self._lock:
-            self.sync_info = _json_safe(sync_info)
 
     def add_cis_frame(
         self,
@@ -273,14 +241,7 @@ class SessionRecorder:
         if self.paths is None:
             return
         files: dict[str, Any] = {}
-        for key in (
-            "dvs",
-            "cis",
-            "cis_frames",
-            "imu",
-            "clock_anchors",
-            "sync_window",
-        ):
+        for key in ("dvs", "cis", "cis_frames", "imu", "clock_anchors"):
             path = getattr(self.paths, key)
             files[key] = {
                 "path": os.path.relpath(path, self.paths.session_dir),
@@ -295,9 +256,6 @@ class SessionRecorder:
             "synthetic": self.synthetic,
             "name": self.name,
             "status": self.status,
-            "created_at_utc": datetime.fromtimestamp(
-                self.created_unix_ns / 1e9, tz=timezone.utc
-            ).isoformat(),
             "started_at_utc": datetime.fromtimestamp(
                 self.start_unix_ns / 1e9, tz=timezone.utc
             ).isoformat(),
@@ -310,8 +268,6 @@ class SessionRecorder:
             ),
             "start_monotonic_ns": self.start_monotonic_ns,
             "start_unix_ns": self.start_unix_ns,
-            "created_monotonic_ns": self.created_monotonic_ns,
-            "created_unix_ns": self.created_unix_ns,
             "end_monotonic_ns": self.end_monotonic_ns,
             "end_unix_ns": self.end_unix_ns,
             "config": self.config,
@@ -321,7 +277,6 @@ class SessionRecorder:
                 "monotonic_ns": self.start_monotonic_ns,
                 "unix_ns": self.start_unix_ns,
             },
-            "synchronization": self.sync_info or {},
             "errors": self.errors,
             "last_error": self.last_error,
         }
@@ -350,11 +305,6 @@ class SessionRecorder:
             self.log(f"finalizing with status={status}")
             if error:
                 self.last_error = error
-            if self.sync_info is not None:
-                self.paths.sync_window.write_text(
-                    json.dumps(self.sync_info, ensure_ascii=False, indent=2) + "\n",
-                    encoding="utf-8",
-                )
             for handle in (self._frames_file, self._anchors_file):
                 if handle is not None:
                     handle.flush()

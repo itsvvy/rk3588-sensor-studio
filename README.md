@@ -6,9 +6,12 @@ portable software distribution.
 
 ## Repository scope
 
-- `start_sensor_studio.sh`: unified launcher entry point.
-- `sensor_studio/`: preview, recording, session management, IMU Zarr logging,
-  CIS GStreamer pipeline, and the native DVS preview callback.
+- `start_sensor_studio.sh`: original v1 launcher entry point.
+- `sensor_studio/`: original v1 application, preserved from the accepted
+  baseline.
+- `start_sensor_studio_v2.sh`: independent synchronized-recording launcher.
+- `sensor_studio_v2/`: optimized v2 application with preroll, common-window
+  validation, source-level CIS timing, and asynchronous IMU storage.
 - `tests/`: CPU-only unit tests for controller behavior and the native frame
   builder.
 - `environment/requirements.txt`: Python environment snapshot from the RK3588.

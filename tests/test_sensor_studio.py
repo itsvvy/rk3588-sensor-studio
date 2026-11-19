@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import tempfile
-import time
 import unittest
 from pathlib import Path
 
@@ -10,7 +9,6 @@ import numpy as np
 
 from sensor_studio.controller import RecordingController, StudioState
 from sensor_studio.recording import SessionRecorder
-from sensor_studio.sources import ImuSource, _ImuZarrWriter, _ZarrV3ArrayWriter
 
 
 class FakeSource:
@@ -18,23 +16,17 @@ class FakeSource:
         self.name = name
         self.ready = ready
         self.error = None if ready else "missing"
-        self.recovering = False
         self.started = 0
         self.stopped = 0
         self.closed = 0
         self.session = None
-        self.first_host_monotonic_ns = 0
-        self.last_host_monotonic_ns = 0
 
     def start_recording(self, session):
         self.started += 1
         self.session = session
-        self.first_host_monotonic_ns = time.monotonic_ns()
-        self.last_host_monotonic_ns = self.first_host_monotonic_ns
 
     def stop_recording(self):
         self.stopped += 1
-        self.last_host_monotonic_ns = time.monotonic_ns()
 
     def close(self):
         self.closed += 1
@@ -45,26 +37,11 @@ class FakeSource:
             "ready": self.ready,
             "started": self.started,
             "stopped": self.stopped,
-            "first_host_monotonic_ns": self.first_host_monotonic_ns,
-            "last_host_monotonic_ns": self.last_host_monotonic_ns,
         }
 
 
 class ControllerTests(unittest.TestCase):
-    class RecoveringSource(FakeSource):
-        def start_recording(self, session):
-            super().start_recording(session)
-            self.ready = False
-            self.recovering = True
-            self.error = "reconnecting"
-
-    def make_controller(
-        self,
-        root: Path,
-        sources,
-        storage_check=None,
-        preroll_seconds=0.0,
-    ):
+    def make_controller(self, root: Path, sources, storage_check=None):
         kwargs = {}
         if storage_check is not None:
             kwargs["storage_check"] = storage_check
@@ -74,7 +51,6 @@ class ControllerTests(unittest.TestCase):
             name="unit",
             synthetic=True,
             config={"test": True},
-            preroll_seconds=preroll_seconds,
             **kwargs,
         )
         controller.mark_started()
@@ -106,71 +82,7 @@ class ControllerTests(unittest.TestCase):
             manifest = json.loads((session_dir / "manifest.json").read_text())
             self.assertEqual(manifest["status"], "complete")
             self.assertTrue(manifest["synthetic"])
-            self.assertEqual(
-                manifest["synchronization"]["mode"],
-                "software_coordinated_preroll",
-            )
-            self.assertTrue(manifest["synchronization"]["valid"])
-            self.assertTrue((session_dir / "sync" / "window.json").is_file())
             self.assertEqual([source.closed for source in sources], [1, 1, 1])
-
-    def test_preroll_sets_common_start_in_the_future(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            sources = [FakeSource("dvs"), FakeSource("cis"), FakeSource("imu")]
-            controller = self.make_controller(
-                root,
-                sources,
-                preroll_seconds=0.2,
-            )
-            before = time.monotonic_ns()
-            self.assertTrue(controller.start_recording())
-            self.assertGreaterEqual(
-                controller.recording_start_monotonic_ns,
-                before + 200_000_000,
-            )
-            controller.request_exit()
-
-    def test_start_allows_source_that_is_recovering(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            sources = [
-                FakeSource("dvs"),
-                FakeSource("cis"),
-                self.RecoveringSource("imu"),
-            ]
-            controller = self.make_controller(root, sources)
-            self.assertTrue(controller.start_recording())
-            self.assertEqual(controller.state, StudioState.RECORDING)
-            controller.request_exit()
-
-    def test_short_stream_does_not_make_window_valid(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            controller = self.make_controller(
-                Path(tmp),
-                [FakeSource("dvs"), FakeSource("cis"), FakeSource("imu")],
-            )
-            controller.recording_start_monotonic_ns = 1_000_000_000
-            sync_info = controller._build_sync_info(
-                source_stats={
-                    "dvs": {
-                        "first_host_monotonic_ns": 500_000_000,
-                        "last_host_monotonic_ns": 2_900_000_000,
-                    },
-                    "cis": {
-                        "first_host_monotonic_ns": 500_000_000,
-                        "last_host_monotonic_ns": 2_900_000_000,
-                    },
-                    "imu": {
-                        "first_host_monotonic_ns": 500_000_000,
-                        "last_host_monotonic_ns": 1_500_000_000,
-                    },
-                },
-                stop_monotonic_ns=3_000_000_000,
-                stop_unix_ns=3_000_000_000,
-            )
-            self.assertFalse(sync_info["valid"])
-            self.assertEqual(sync_info["uncovered_streams"], ["imu"])
 
     def test_source_failure_fails_session(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -219,86 +131,9 @@ class RecordingTests(unittest.TestCase):
                 "dvs,1,10,11,12",
             )
             manifest = json.loads(session.paths.manifest.read_text())
-            self.assertEqual(manifest["schema_version"], 2)
+            self.assertEqual(manifest["schema_version"], 1)
             self.assertEqual(manifest["status"], "complete")
             self.assertTrue(session.paths.log.read_text())
-
-    def test_sync_window_is_written(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            session = SessionRecorder.begin(
-                Path(tmp), "window", True, {"test": True}
-            )
-            session.mark_recording_started(
-                monotonic_ns_value=100,
-                unix_ns_value=200,
-            )
-            session.set_sync_info(
-                {
-                    "schema_version": 1,
-                    "common_start_monotonic_ns": 100,
-                    "common_end_monotonic_ns": 200,
-                    "valid": True,
-                }
-            )
-            session.finish("complete")
-            assert session.paths is not None
-            window = json.loads(session.paths.sync_window.read_text())
-            self.assertEqual(window["common_start_monotonic_ns"], 100)
-            manifest = json.loads(session.paths.manifest.read_text())
-            self.assertTrue(manifest["files"]["sync_window"]["exists"])
-
-
-class ImuWriterTests(unittest.TestCase):
-    class SlowStore:
-        def __init__(self):
-            self.values = []
-
-        def append(self, value):
-            time.sleep(0.2)
-            self.values.extend(np.asarray(value).tolist())
-
-        def close(self):
-            return
-
-    def test_enqueue_does_not_wait_for_disk_write(self):
-        errors = []
-        writer = _ImuZarrWriter(
-            {"accel": self.SlowStore()},
-            {"accel": self.SlowStore()},
-            errors.append,
-        )
-        started = time.perf_counter()
-        writer.enqueue({"accel": ([[1, 2, 3]], [123])})
-        enqueue_seconds = time.perf_counter() - started
-        self.assertLess(enqueue_seconds, 0.1)
-        writer.close()
-        self.assertEqual(errors, [])
-
-    def test_zarr_v3_writer_metadata_and_chunk(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "accel"
-            writer = _ZarrV3ArrayWriter(
-                path,
-                trailing_shape=(3,),
-                dtype="<i2",
-                chunk_rows=4,
-            )
-            writer.append([[1, 2, 3], [4, 5, 6]])
-            writer.close()
-
-            metadata = json.loads((path / "zarr.json").read_text())
-            self.assertEqual(metadata["shape"], [2, 3])
-            self.assertEqual(metadata["zarr_format"], 3)
-            raw = (path / "c" / "0").read_bytes()
-            values = np.frombuffer(raw, dtype="<i2").reshape(4, 3)
-            self.assertEqual(values[:2].tolist(), [[1, 2, 3], [4, 5, 6]])
-            self.assertEqual(values[2:].tolist(), [[0, 0, 0], [0, 0, 0]])
-
-    def test_static_zero_values_still_mark_imu_ready(self):
-        source = ImuSource("", synthetic=True)
-        source._emit_sample(0x51, (0, 0, 0))
-        self.assertTrue(source.ready)
-        self.assertEqual(source.latest_values()["accel"], (0, 0, 0))
 
 
 class NativeDvsTests(unittest.TestCase):

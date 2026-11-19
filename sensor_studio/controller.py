@@ -3,7 +3,6 @@ from __future__ import annotations
 import enum
 import logging
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -47,7 +46,6 @@ class RecordingController:
         synthetic: bool,
         config: dict[str, Any],
         storage_check=output_root_is_writable,
-        preroll_seconds: float = 0.5,
     ) -> None:
         self.sources = sources
         self.output_root = output_root
@@ -55,7 +53,6 @@ class RecordingController:
         self.synthetic = synthetic
         self.config = config
         self.storage_check = storage_check
-        self.preroll_seconds = max(0.0, float(preroll_seconds))
         self.state = StudioState.STARTING
         self.session: SessionRecorder | None = None
         self.message = "正在初始化"
@@ -146,41 +143,15 @@ class RecordingController:
                     f"elapsed_ms={(time.monotonic_ns() - started_ns) / 1e6:.1f}"
                 )
                 started_sources.append(source)
-            preroll_ns = int(self.preroll_seconds * 1e9)
-            self.recording_start_monotonic_ns = time.monotonic_ns() + preroll_ns
-            start_unix_ns = time.time_ns() + preroll_ns
-            self.session.mark_recording_started(
-                monotonic_ns_value=self.recording_start_monotonic_ns,
-                unix_ns_value=start_unix_ns,
-            )
+            self.recording_start_monotonic_ns = time.monotonic_ns()
+            self.session.mark_recording_started()
             self.session.log(
-                "all source recorders started; "
-                f"preroll_ms={self.preroll_seconds * 1000:.1f}; "
-                f"sdk_ready={self.all_sources_ready}"
+                f"all source recorders started; sdk_ready={self.all_sources_ready}"
             )
-            unavailable = [
-                f"{source.name}: {source.error or '未就绪'}"
-                for source in self.sources
-                if not source.ready and not source.recovering
-            ]
-            if unavailable:
-                raise RuntimeError(
-                    "启动录制期间有传感器退出: " + " | ".join(unavailable)
-                )
-            recovering = [
-                source.name for source in self.sources if source.recovering
-            ]
-            if recovering:
-                self.session.log(
-                    "recording started while sources recover: "
-                    + ",".join(recovering)
-                )
+            if not self.all_sources_ready:
+                raise RuntimeError("启动录制期间有传感器退出")
             self.state = StudioState.RECORDING
-            self.message = (
-                f"正在录制，预热 {self.preroll_seconds:.1f}s 后进入共同起点"
-                if self.preroll_seconds > 0
-                else "正在录制，按 Q 停止并退出"
-            )
+            self.message = "正在录制，按 Q 停止并退出"
             log.info("Recording started in %s", self.session.session_dir)
             return True
         except Exception as exc:
@@ -211,33 +182,17 @@ class RecordingController:
         self.state = StudioState.FINALIZING
         self.message = "正在停止并保存数据"
         errors: list[str] = []
-        stop_monotonic_ns = time.monotonic_ns()
-        stop_unix_ns = time.time_ns()
         if previous_state == StudioState.RECORDING:
-            if self.session is not None:
-                self.session.mark_recording_stopped(
-                    monotonic_ns_value=stop_monotonic_ns,
-                    unix_ns_value=stop_unix_ns,
-                )
-            with ThreadPoolExecutor(
-                max_workers=max(1, len(self.sources)),
-                thread_name_prefix="sensor-studio-stop",
-            ) as executor:
-                futures = {}
-                for source in self.sources:
+            for source in self.sources:
+                try:
                     if self.session is not None:
                         self.session.log(f"stopping source: {source.name}")
-                    futures[executor.submit(source.stop_recording)] = source
-                for future in as_completed(futures):
-                    source = futures[future]
-                    try:
-                        future.result()
-                    except Exception as exc:
-                        log.exception("Stopping %s failed", source.name)
-                        errors.append(f"{source.name}: {exc}")
-                    else:
-                        if self.session is not None:
-                            self.session.log(f"stopped source: {source.name}")
+                    source.stop_recording()
+                    if self.session is not None:
+                        self.session.log(f"stopped source: {source.name}")
+                except Exception as exc:
+                    log.exception("Stopping %s failed", source.name)
+                    errors.append(f"{source.name}: {exc}")
 
         for source in self.sources:
             try:
@@ -252,14 +207,7 @@ class RecordingController:
             final_status = "failed"
             final_error = "; ".join(errors)
 
-        source_stats = self.source_stats()
         if self.session is not None and self.session.paths is not None:
-            sync_info = self._build_sync_info(
-                source_stats=source_stats,
-                stop_monotonic_ns=stop_monotonic_ns,
-                stop_unix_ns=stop_unix_ns,
-            )
-            self.session.set_sync_info(sync_info)
             self.session.log(
                 f"stop requested; previous_state={previous_state.value}"
             )
@@ -267,7 +215,7 @@ class RecordingController:
                 self.session.add_error("shutdown", item)
             self.session.finish(
                 final_status,
-                source_stats=source_stats,
+                source_stats=self.source_stats(),
                 error=final_error,
             )
 
@@ -275,87 +223,6 @@ class RecordingController:
         self.message = final_error or "录制完成"
         self._exit_finalized = True
         log.info("Recording finalized with status %s", final_status)
-
-    def _build_sync_info(
-        self,
-        *,
-        source_stats: dict[str, Any],
-        stop_monotonic_ns: int,
-        stop_unix_ns: int,
-    ) -> dict[str, Any]:
-        stream_ranges: dict[str, dict[str, int | None]] = {}
-        first_values: list[int] = []
-        last_values: list[int] = []
-        for name, stats in source_stats.items():
-            first = stats.get("first_host_monotonic_ns")
-            last = stats.get("last_host_monotonic_ns")
-            first_int = int(first) if first else None
-            last_int = int(last) if last else None
-            stream_ranges[name] = {
-                "first_host_monotonic_ns": first_int,
-                "last_host_monotonic_ns": last_int,
-            }
-            if first_int is not None:
-                first_values.append(first_int)
-            if last_int is not None:
-                last_values.append(last_int)
-
-        planned_start = (
-            int(self.recording_start_monotonic_ns)
-            if self.recording_start_monotonic_ns is not None
-            else None
-        )
-        common_start = (
-            max([planned_start, *first_values])
-            if planned_start is not None and first_values
-            else planned_start
-        )
-        common_end = min([stop_monotonic_ns, *last_values]) if last_values else None
-        common_duration_ns = (
-            max(0, common_end - common_start)
-            if common_start is not None and common_end is not None
-            else 0
-        )
-        expected_duration_ns = (
-            max(0, stop_monotonic_ns - common_start)
-            if common_start is not None
-            else 0
-        )
-        coverage_tolerance_ns = 500_000_000
-        uncovered_streams = [
-            name
-            for name, values in stream_ranges.items()
-            if values["first_host_monotonic_ns"] is None
-            or values["last_host_monotonic_ns"] is None
-            or common_start is None
-            or values["first_host_monotonic_ns"] > common_start + coverage_tolerance_ns
-            or values["last_host_monotonic_ns"] < stop_monotonic_ns - coverage_tolerance_ns
-        ]
-        valid = bool(
-            common_start is not None
-            and common_end is not None
-            and common_end > common_start
-            and common_duration_ns
-            >= expected_duration_ns - coverage_tolerance_ns
-            and not uncovered_streams
-        )
-        return {
-            "schema_version": 1,
-            "mode": "software_coordinated_preroll",
-            "hardware_trigger": False,
-            "preroll_seconds": self.preroll_seconds,
-            "planned_start_monotonic_ns": planned_start,
-            "stop_request_monotonic_ns": stop_monotonic_ns,
-            "stop_request_unix_ns": stop_unix_ns,
-            "common_start_monotonic_ns": common_start,
-            "common_end_monotonic_ns": common_end,
-            "common_duration_ns": common_duration_ns,
-            "expected_common_duration_ns": expected_duration_ns,
-            "coverage_tolerance_ns": coverage_tolerance_ns,
-            "valid": valid,
-            "uncovered_streams": uncovered_streams,
-            "stream_ranges": stream_ranges,
-        }
 
     def tick(self) -> None:
         self.refresh_storage()
@@ -365,12 +232,6 @@ class RecordingController:
                 poll()
         if self.state != StudioState.RECORDING:
             return
-        if (
-            self.recording_start_monotonic_ns is not None
-            and time.monotonic_ns() >= self.recording_start_monotonic_ns
-            and self.message.startswith("正在录制，预热")
-        ):
-            self.message = "正在录制，按 Q 停止并退出"
         failed = [
             source
             for source in self.sources
