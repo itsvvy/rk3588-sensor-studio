@@ -29,7 +29,7 @@ decision.
 CPU tests:
 
 ```text
-12 tests, 11 passed, 1 skipped
+13 tests, 12 passed, 1 skipped
 ```
 
 The skipped native DVS test requires the native extension, which was not built
@@ -92,6 +92,30 @@ Full three-source hardware runs, five attempts:
   not cover the common start.
 - A complete three-source hardware synchronization run is still required after
   USB topology or IMU-link stability is addressed.
+
+Native DVS backend check:
+
+- The repository checkout did not contain the OpenEB tree, so initial tests
+  automatically used the Python DVS fallback.
+- Reusing the existing compiled native extension with identical
+  `dvs_fastpath.cpp` allowed a three-source recording to start and produce a
+  non-empty intersection.
+- IMU still disconnected after about two seconds. The result covered only
+  1.33 seconds of the requested 10-second session.
+- The synchronization validity check was tightened to reject windows that do
+  not cover the stop request within a 0.5-second tolerance.
+
+USB-bandwidth check:
+
+- DVS RAW was approximately 5.1 MB/s (about 41 Mbps).
+- CIS H.264 output was approximately 5.4 Mbps; even using the camera's 25 fps
+  MJPEG descriptor limit of 147 Mbps, total device traffic remains well below
+  the 480 Mbps USB2 link.
+- Kernel failures are disconnect/protocol errors (`-32`, `-71`) during DVS
+  control-device re-enumeration and CH340 removal, not bandwidth exhaustion.
+- The hub reports itself as self-powered. Its downstream device declarations
+  total approximately 1.2 A, so external supply quality and the shared hub
+  topology remain the primary hardware suspects.
 
 ## Known Limits
 

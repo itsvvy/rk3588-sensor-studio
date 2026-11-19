@@ -144,6 +144,34 @@ class ControllerTests(unittest.TestCase):
             self.assertEqual(controller.state, StudioState.RECORDING)
             controller.request_exit()
 
+    def test_short_stream_does_not_make_window_valid(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            controller = self.make_controller(
+                Path(tmp),
+                [FakeSource("dvs"), FakeSource("cis"), FakeSource("imu")],
+            )
+            controller.recording_start_monotonic_ns = 1_000_000_000
+            sync_info = controller._build_sync_info(
+                source_stats={
+                    "dvs": {
+                        "first_host_monotonic_ns": 500_000_000,
+                        "last_host_monotonic_ns": 2_900_000_000,
+                    },
+                    "cis": {
+                        "first_host_monotonic_ns": 500_000_000,
+                        "last_host_monotonic_ns": 2_900_000_000,
+                    },
+                    "imu": {
+                        "first_host_monotonic_ns": 500_000_000,
+                        "last_host_monotonic_ns": 1_500_000_000,
+                    },
+                },
+                stop_monotonic_ns=3_000_000_000,
+                stop_unix_ns=3_000_000_000,
+            )
+            self.assertFalse(sync_info["valid"])
+            self.assertEqual(sync_info["uncovered_streams"], ["imu"])
+
     def test_source_failure_fails_session(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -316,19 +316,27 @@ class RecordingController:
             if common_start is not None and common_end is not None
             else 0
         )
+        expected_duration_ns = (
+            max(0, stop_monotonic_ns - common_start)
+            if common_start is not None
+            else 0
+        )
+        coverage_tolerance_ns = 500_000_000
         uncovered_streams = [
             name
             for name, values in stream_ranges.items()
             if values["first_host_monotonic_ns"] is None
             or values["last_host_monotonic_ns"] is None
             or common_start is None
-            or values["first_host_monotonic_ns"] > common_start
-            or values["last_host_monotonic_ns"] < common_start
+            or values["first_host_monotonic_ns"] > common_start + coverage_tolerance_ns
+            or values["last_host_monotonic_ns"] < stop_monotonic_ns - coverage_tolerance_ns
         ]
         valid = bool(
             common_start is not None
             and common_end is not None
             and common_end > common_start
+            and common_duration_ns
+            >= expected_duration_ns - coverage_tolerance_ns
             and not uncovered_streams
         )
         return {
@@ -342,6 +350,8 @@ class RecordingController:
             "common_start_monotonic_ns": common_start,
             "common_end_monotonic_ns": common_end,
             "common_duration_ns": common_duration_ns,
+            "expected_common_duration_ns": expected_duration_ns,
+            "coverage_tolerance_ns": coverage_tolerance_ns,
             "valid": valid,
             "uncovered_streams": uncovered_streams,
             "stream_ranges": stream_ranges,
