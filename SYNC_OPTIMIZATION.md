@@ -182,6 +182,34 @@ Remaining observation: run 1 reported 304 more DVS events in the manifest than
 were decoded from RAW, approximately 0.005%. Runs 2 and 3 matched exactly. RAW
 verification itself succeeded in all three runs.
 
+## Stable GUI Iteration
+
+Later GUI tests reproduced complete USB-path disconnects in both v1 and v2
+while the full-size 2560x720 CIS preview was active. Headless recordings
+remained stable. This showed that the failure was not caused by the v2
+synchronization algorithm alone.
+
+Two stability changes were made in v2:
+
+- The CIS Python timestamp callback was moved out of the V4L2 source thread.
+  It now runs at the post-decode tee sink, before the recording branch, so the
+  PTS-to-host map remains available without blocking camera reads.
+- The full-size CIS preview is disabled by default. `--cis-preview` opts back
+  into it for workflows that accept the additional USB stability risk.
+
+Final validation with the default v2 launcher:
+
+- GUI stayed online for 27 seconds and all devices remained present afterward.
+- A 15-second hardware recording was `complete` and `valid`.
+- Common window: 14.549 seconds, exactly equal to the expected window.
+- DVS: 13,611,588 events, RAW duration 15.056 seconds.
+- CIS: 379 CSV rows and 379 decoded MKV frames.
+- IMU: 3,026-3,027 samples per type, zero reconnects.
+- IMU P99 spacing: 7.5-8.6 ms, no gaps above 20 ms.
+
+The synchronization design therefore remains unchanged: preroll, common host
+timestamps, per-stream coverage, and `sync/window.json` are retained.
+
 ## Known Limits
 
 - This is software-coordinated synchronization, not a common hardware trigger.

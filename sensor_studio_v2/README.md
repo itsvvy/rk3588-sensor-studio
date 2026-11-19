@@ -1,13 +1,15 @@
 # Sensor Studio v2
 
-Preview and recording for DVS, stereo CIS, and JY931 IMU.
+Stable synchronized recording for DVS, stereo CIS, and JY931 IMU.
 
-Two windows are shown:
+By default one window is shown:
 
 - `DVS - Sensor Studio`: DVS preview and the shared keyboard controller.
-- GStreamer preview: the complete 2560x720 stereo CIS image.
 
-The IMU has no viewer; it is recorded in the background.
+The IMU has no viewer; it is recorded in the background. CIS is also recorded
+in the background. The full-size 2560x720 CIS preview can be enabled with
+`--cis-preview`, but it is disabled by default because repeated hardware tests
+showed that it can destabilize the shared USB2 path.
 
 ## Start
 
@@ -39,7 +41,7 @@ Controls:
 
 - Focus the DVS window.
 - `SPACE`: start the single recording session for DVS, CIS, and IMU.
-- `Q` or `Esc`: stop all streams, finalize files, and close both windows.
+- `Q` or `Esc`: stop all streams, finalize files, and close the application.
 - Closing the DVS window follows the same safe shutdown path.
 
 The default output directory is `/media/astri/SD-FAT32`. If it is not writable,
@@ -87,8 +89,8 @@ records for pipeline testing and the session manifest is marked
 ```
 
 `cis/frames.csv` contains frame PTS and host monotonic/Unix timestamps. The host
-timestamp is taken at the camera source pad before JPEG decode, color
-conversion, and queue scheduling.
+timestamp mapping is taken at the post-decode tee sink, before the recording
+branch, so Python work does not block the V4L2 source thread.
 `sync/clock_anchors.csv` contains DVS/IMU device-to-host clock anchors.
 `imu/imu.zarr` stores raw int16 XYZ arrays and matching int64 monotonic
 nanosecond timestamps. Its append-only chunks are written by a dedicated
@@ -121,6 +123,8 @@ values.
 --imu-device PATH
 --imu-baud BAUD (default: 115200)
 --sync-preroll-seconds SECONDS (default: 0.5)
+--cis-preview (opt in to the full-size CIS preview; disabled by default for
+               USB stability)
 ```
 
 The current SD card must be writable before hardware recording. The application

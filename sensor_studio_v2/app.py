@@ -74,6 +74,11 @@ def build_parser() -> argparse.ArgumentParser:
             "recording start, allowing all streams to be trimmed to one window"
         ),
     )
+    parser.add_argument(
+        "--cis-preview",
+        action="store_true",
+        help="Enable the full-size CIS preview; recording is stable without it",
+    )
     parser.add_argument("--headless", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument(
         "--auto-record-seconds",
@@ -124,7 +129,7 @@ def run(args: argparse.Namespace) -> int:
                 "",
                 synthetic=True,
                 fps=args.cis_fps,
-                show_preview=not args.headless,
+                show_preview=not args.headless and args.cis_preview,
             ),
             ImuSource("", args.imu_baud, synthetic=True),
         ]
@@ -138,7 +143,7 @@ def run(args: argparse.Namespace) -> int:
             CisSource(
                 args.cis_device,
                 fps=args.cis_fps,
-                show_preview=not args.headless,
+                show_preview=not args.headless and args.cis_preview,
             ),
             ImuSource(args.imu_device, args.imu_baud),
         ]
@@ -160,6 +165,7 @@ def run(args: argparse.Namespace) -> int:
         "imu_device": args.imu_device,
         "imu_baud": args.imu_baud,
         "sync_preroll_seconds": args.sync_preroll_seconds,
+        "cis_preview": args.cis_preview,
     }
     controller = RecordingController(
         sources=sources,

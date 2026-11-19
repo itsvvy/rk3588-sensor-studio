@@ -767,13 +767,12 @@ class CisSource(SourceBase):
                 if not left.link(right):
                     raise RuntimeError(f"GStreamer无法连接 {left.get_name()} -> {right.get_name()}")
 
-            # Capture timing at the source pad, before JPEG decode and tee
-            # scheduling can add variable processing latency.
-            self._timestamp_pad = source.get_static_pad("src")
+            self._timestamp_pad = self._tee.get_static_pad("sink")
             if self._timestamp_pad is None:
-                raise RuntimeError("CIS采集源没有输出pad")
+                raise RuntimeError("CIS tee缺少输入pad")
             self._timestamp_probe_id = self._timestamp_pad.add_probe(
-                Gst.PadProbeType.BUFFER, self._on_buffer
+                self._Gst.PadProbeType.BUFFER,
+                self._on_buffer,
             )
 
             timestamp_queue = self._make("queue", "timestamp-queue")
@@ -859,8 +858,6 @@ class CisSource(SourceBase):
         if buffer is None:
             return self._Gst.PadProbeReturn.OK
         try:
-            host_mono = monotonic_ns()
-            host_unix = unix_ns()
             pts = int(buffer.pts)
             if pts == int(self._Gst.CLOCK_TIME_NONE):
                 pts = 0
@@ -868,11 +865,15 @@ class CisSource(SourceBase):
             self._last_pts_ns = pts
             self._first_frame.set()
             with self._record_lock:
-                self._source_pts_timing[pts] = (host_mono, host_unix)
-                self._source_pts_order.append(pts)
-                while len(self._source_pts_order) > 512:
-                    expired = self._source_pts_order.popleft()
-                    self._source_pts_timing.pop(expired, None)
+                if self._recording:
+                    self._source_pts_timing[pts] = (
+                        monotonic_ns(),
+                        unix_ns(),
+                    )
+                    self._source_pts_order.append(pts)
+                    while len(self._source_pts_order) > 512:
+                        expired = self._source_pts_order.popleft()
+                        self._source_pts_timing.pop(expired, None)
             return self._Gst.PadProbeReturn.OK
         except Exception as exc:
             self._set_error(f"CIS帧处理异常: {exc}")
@@ -1130,7 +1131,7 @@ class CisSource(SourceBase):
             "last_pts_ns": self._last_pts_ns,
             "first_host_monotonic_ns": self._record_first_host_ns,
             "last_host_monotonic_ns": self._record_last_host_ns,
-            "timestamp_point": "source_pad",
+            "timestamp_point": "post_decode_tee_sink",
             "encoder": getattr(self, "encoder_name", None),
             "decoder": getattr(self, "decoder_name", None),
         }
