@@ -117,6 +117,34 @@ USB-bandwidth check:
   total approximately 1.2 A, so external supply quality and the shared hub
   topology remain the primary hardware suspects.
 
+## Replacement Dock Validation
+
+A second VIA Labs USB-C dock was tested on 2026-11-19. The dock exposes both
+USB2 and USB3 hubs, but the DVS, camera, and CH340 remain nested under the
+original TUSB8041 USB2 branch. The DVS still does not negotiate USB3.
+
+Three consecutive 10-second three-source runs:
+
+- Run 1 disconnected the entire dock after about 0.2 seconds.
+- DVS failed with `LIBUSB_ERROR_NO_DEVICE`.
+- CIS failed with a V4L2 `No such device` polling error.
+- Runs 2 and 3 could not open the camera or DVS within the startup timeout.
+- No synchronization window was produced.
+
+Isolated and combined tests with the replacement dock:
+
+- CIS only, 5 seconds: passed, 125 recorded frames.
+- DVS only, 5 seconds: passed, 3,195,499 events.
+- DVS plus CIS, 5 seconds: the whole USB dock disconnected immediately.
+- The replacement dock's USB3 network adapter was disconnected at the same
+  time, showing that the failure affects the dock/upstream connection rather
+  than only the sensor sub-hub.
+
+The best traffic estimate remains below 200 Mbps on a nominal 480 Mbps USB2
+link. Kernel behavior is consistent with an upstream power drop, cable/contact
+problem, or dock protection reset. The replacement dock did not improve the
+combined hardware path and was less stable than the previous dock.
+
 ## Known Limits
 
 - This is software-coordinated synchronization, not a common hardware trigger.
