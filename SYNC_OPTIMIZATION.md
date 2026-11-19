@@ -44,6 +44,19 @@ Synthetic headless recording:
 - CIS: 51 recorded frames
 - IMU: 388 samples per sensor in the final run
 
+CIS-only real hardware recording, 8 seconds:
+
+- 201 timestamp rows in `frames.csv`
+- 201 frames decoded from the MKV
+- Frame count mismatch found during repeated testing was fixed by enabling the
+  recording flag before the CIS recording branch entered PLAYING
+
+DVS-only real hardware recording, 10 seconds:
+
+- 5,843,543 CD events
+- RAW duration 10.000 seconds
+- No DVS source error
+
 IMU-only real hardware recording, 6 seconds:
 
 - 1,206 samples per sensor
@@ -54,10 +67,24 @@ IMU-only real hardware recording, 6 seconds:
 This removes the periodic 50-100 ms pauses observed with the previous
 synchronous Zarr write path.
 
-Full three-source hardware runs:
+Two additional IMU-only runs, 10 seconds each:
+
+- 2,009 samples per sensor
+- Zero reconnects
+- P99 time gap: 7.4-8.6 ms
+- No gaps above 20 ms
+
+Full three-source hardware runs, five attempts:
 
 - DVS RAW and CIS video were successfully recorded.
-- The CH340/IMU path intermittently disconnected when DVS and CIS started.
+- No attempt formed a valid three-stream common window.
+- Depending on the attempt, IMU produced 0-51 samples before disconnect, or was
+  not ready within the 8-second startup limit.
+- Kernel logs show the Cypress EVKCX3 control device re-enumerating in DFU mode
+  while the CH340 is simultaneously disconnected and reattached.
+- DVS-only, CIS-only, and IMU-only runs were stable, so the failure is
+  correlated with the combined USB hub/power topology rather than any single
+  sensor driver in isolation.
 - `sync/window.json` correctly marked the common window invalid when IMU did
   not cover the common start.
 - A complete three-source hardware synchronization run is still required after

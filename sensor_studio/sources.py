@@ -953,8 +953,6 @@ class CisSource(SourceBase):
                         raise RuntimeError(
                             f"无法连接录制元素 {left.get_name()} -> {right.get_name()}"
                         )
-                for element in elements:
-                    element.sync_state_with_parent()
                 self._record_elements = elements
                 self._record_tee_pad = tee_pad
                 self._session = session
@@ -962,7 +960,13 @@ class CisSource(SourceBase):
                 self._record_first_host_ns = 0
                 self._record_last_host_ns = 0
                 self._recording = True
+                for element in elements:
+                    element.sync_state_with_parent()
             except Exception:
+                self._recording = False
+                self._record_elements = []
+                self._record_tee_pad = None
+                self._session = None
                 if tee_pad is not None:
                     try:
                         tee_pad.unlink(queue_element.get_static_pad("sink"))
