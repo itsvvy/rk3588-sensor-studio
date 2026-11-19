@@ -48,8 +48,11 @@ CIS-only real hardware recording, 8 seconds:
 
 - 201 timestamp rows in `frames.csv`
 - 201 frames decoded from the MKV
-- Frame count mismatch found during repeated testing was fixed by enabling the
-  recording flag before the CIS recording branch entered PLAYING
+- A repeated-test frame-count mismatch was fixed by recording `frames.csv`
+  rows from the actual CIS recording branch while using the source-pad timing
+  map for each PTS
+- A later 6-second boundary check produced 150 CSV rows and 150 MKV frames,
+  with identical PTS sets and no one-sided frames
 
 DVS-only real hardware recording, 10 seconds:
 

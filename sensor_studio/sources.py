@@ -699,11 +699,16 @@ class CisSource(SourceBase):
         self._session: SessionRecorder | None = None
         self._record_elements: list[Any] = []
         self._record_tee_pad = None
+        self._record_probe_id = None
+        self._record_probe_pad = None
         self._record_frame_index = 0
         self._total_frames = 0
         self._last_pts_ns = 0
         self._record_first_host_ns = 0
         self._record_last_host_ns = 0
+        self._source_pts_timing: dict[int, tuple[int, int]] = {}
+        self._source_pts_order: deque[int] = deque()
+        self._stopping = False
         self._record_lock = threading.RLock()
         self._Gst = None
 
@@ -863,20 +868,43 @@ class CisSource(SourceBase):
             self._last_pts_ns = pts
             self._first_frame.set()
             with self._record_lock:
-                if self._recording and self._session is not None:
-                    self._record_frame_index += 1
-                    if self._record_first_host_ns == 0:
-                        self._record_first_host_ns = host_mono
-                    self._record_last_host_ns = host_mono
-                    self._session.add_cis_frame(
-                        self._record_frame_index,
-                        pts,
-                        host_mono,
-                        host_unix,
-                    )
+                self._source_pts_timing[pts] = (host_mono, host_unix)
+                self._source_pts_order.append(pts)
+                while len(self._source_pts_order) > 512:
+                    expired = self._source_pts_order.popleft()
+                    self._source_pts_timing.pop(expired, None)
             return self._Gst.PadProbeReturn.OK
         except Exception as exc:
             self._set_error(f"CIS帧处理异常: {exc}")
+            return self._Gst.PadProbeReturn.DROP
+
+    def _on_record_buffer(self, _pad, info):
+        buffer = info.get_buffer()
+        if buffer is None:
+            return self._Gst.PadProbeReturn.OK
+        try:
+            pts = int(buffer.pts)
+            if pts == int(self._Gst.CLOCK_TIME_NONE):
+                pts = 0
+            with self._record_lock:
+                if self._recording and self._session is not None:
+                    source_mono, source_unix = self._source_pts_timing.get(
+                        pts,
+                        (monotonic_ns(), unix_ns()),
+                    )
+                    self._record_frame_index += 1
+                    if self._record_first_host_ns == 0:
+                        self._record_first_host_ns = source_mono
+                    self._record_last_host_ns = source_mono
+                    self._session.add_cis_frame(
+                        self._record_frame_index,
+                        pts,
+                        source_mono,
+                        source_unix,
+                    )
+            return self._Gst.PadProbeReturn.OK
+        except Exception as exc:
+            self._set_error(f"CIS录制帧处理异常: {exc}")
             return self._Gst.PadProbeReturn.DROP
 
     def latest_frame(self) -> np.ndarray | None:
@@ -953,12 +981,22 @@ class CisSource(SourceBase):
                         raise RuntimeError(
                             f"无法连接录制元素 {left.get_name()} -> {right.get_name()}"
                         )
+                self._record_probe_pad = queue_element.get_static_pad("sink")
+                if self._record_probe_pad is None:
+                    raise RuntimeError("CIS录制queue缺少输入pad")
+                self._record_probe_id = self._record_probe_pad.add_probe(
+                    self._Gst.PadProbeType.BUFFER,
+                    self._on_record_buffer,
+                )
                 self._record_elements = elements
                 self._record_tee_pad = tee_pad
                 self._session = session
                 self._record_frame_index = 0
                 self._record_first_host_ns = 0
                 self._record_last_host_ns = 0
+                self._source_pts_timing.clear()
+                self._source_pts_order.clear()
+                self._stopping = False
                 self._recording = True
                 for element in elements:
                     element.sync_state_with_parent()
@@ -967,6 +1005,9 @@ class CisSource(SourceBase):
                 self._record_elements = []
                 self._record_tee_pad = None
                 self._session = None
+                self._record_probe_id = None
+                self._record_probe_pad = None
+                self._stopping = False
                 if tee_pad is not None:
                     try:
                         tee_pad.unlink(queue_element.get_static_pad("sink"))
@@ -983,11 +1024,13 @@ class CisSource(SourceBase):
 
     def stop_recording(self) -> None:
         with self._record_lock:
-            if not self._recording:
+            if not self._recording or self._stopping:
                 return
-            self._recording = False
+            self._stopping = True
             tee_pad = self._record_tee_pad
             elements = list(self._record_elements)
+            probe_pad = self._record_probe_pad
+            probe_id = self._record_probe_id
             error: Exception | None = None
             try:
                 if tee_pad is None:
@@ -1017,6 +1060,11 @@ class CisSource(SourceBase):
             except Exception as exc:
                 error = exc
             finally:
+                if probe_pad is not None and probe_id is not None:
+                    try:
+                        probe_pad.remove_probe(probe_id)
+                    except Exception:
+                        pass
                 if tee_pad is not None and elements:
                     try:
                         tee_pad.unlink(elements[0].get_static_pad("sink"))
@@ -1035,7 +1083,11 @@ class CisSource(SourceBase):
                         pass
                 self._record_elements = []
                 self._record_tee_pad = None
+                self._record_probe_id = None
+                self._record_probe_pad = None
                 self._session = None
+                self._recording = False
+                self._stopping = False
             if error is not None:
                 raise error
 
