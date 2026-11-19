@@ -69,7 +69,9 @@ First retained synchronized-recording validation capture from v2.
 See [the session notes](2026-11-19_18-42-46/NOTES.md),
 `sync/window.json`, and `manifest.json` for synchronization and stream
 details. This session remains experimental and does not change the accepted
-`main` baseline.
+`main` baseline. See
+[the v1/v2 synchronization comparison](sensor_studio_v2/SYNC_COMPARISON.md)
+for mechanism and measured-performance details.
 
 ### OpenEB event-tool compatibility analysis
 

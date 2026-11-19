@@ -2,6 +2,9 @@
 
 Stable synchronized recording for DVS, stereo CIS, and JY931 IMU.
 
+See [SYNC_COMPARISON.md](SYNC_COMPARISON.md) for the synchronization-mechanism
+and measured-performance comparison with the original `sensor_studio` version.
+
 By default one window is shown:
 
 - `DVS - Sensor Studio`: DVS preview and the shared keyboard controller.
