@@ -27,7 +27,7 @@ DEFAULT_CIS_DEVICE = (
 DEFAULT_IMU_DEVICE = (
     "/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0"
 )
-DEFAULT_OUTPUT_ROOT = "/media/astri/SD-FAT32"
+DEFAULT_OUTPUT_ROOT = "/home/astri"
 DEFAULT_FALLBACK_OUTPUT_ROOT = "/home/astri"
 
 
@@ -79,6 +79,15 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Enable the full-size CIS preview; recording is stable without it",
     )
+    parser.add_argument(
+        "--startup-settle-seconds",
+        type=float,
+        default=0.5,
+        help=(
+            "Wait after process/backend initialization before opening USB "
+            "devices; stabilizes the shared USB2 dock path"
+        ),
+    )
     parser.add_argument("--headless", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument(
         "--auto-record-seconds",
@@ -122,6 +131,12 @@ def run(args: argparse.Namespace) -> int:
         "Recording backends prewarmed in %.1f ms",
         (time.monotonic() - prewarm_started) * 1000,
     )
+    if args.startup_settle_seconds > 0:
+        log.info(
+            "Waiting %.1f s for USB devices to settle",
+            args.startup_settle_seconds,
+        )
+        time.sleep(args.startup_settle_seconds)
     if args.synthetic:
         sources = [
             SyntheticDvsSource(),
@@ -166,6 +181,7 @@ def run(args: argparse.Namespace) -> int:
         "imu_baud": args.imu_baud,
         "sync_preroll_seconds": args.sync_preroll_seconds,
         "cis_preview": args.cis_preview,
+        "startup_settle_seconds": args.startup_settle_seconds,
     }
     controller = RecordingController(
         sources=sources,

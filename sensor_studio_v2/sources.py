@@ -53,6 +53,7 @@ class _ZarrV3ArrayWriter:
                 f"unexpected array shape {rows.shape}, expected (*, {expected_tail})"
             )
         offset = 0
+        wrote_full_chunk = False
         while offset < len(rows):
             room = self.chunk_rows - self._buffered_rows
             count = min(room, len(rows) - offset)
@@ -67,11 +68,14 @@ class _ZarrV3ArrayWriter:
                 self._chunk_index += 1
                 self._buffered_rows = 0
                 self._buffer.fill(0)
-        self._write_chunk()
-        self._write_metadata()
+                wrote_full_chunk = True
+        if wrote_full_chunk:
+            self._write_metadata()
 
     def close(self) -> None:
-        self._write_chunk()
+        if self._buffered_rows:
+            self._write_chunk()
+            self._buffered_rows = 0
         self._write_metadata()
 
     def _write_chunk(self) -> None:
@@ -132,7 +136,9 @@ class _ImuZarrWriter:
         self._stores = stores
         self._timestamp_stores = timestamp_stores
         self._on_error = on_error
-        self._queue: queue.Queue = queue.Queue(maxsize=64)
+        self._queue: queue.Queue = queue.Queue(maxsize=32)
+        self._max_queue_depth = 0
+        self._written_batches = 0
         self._error: Exception | None = None
         self._thread = threading.Thread(
             target=self._run,
@@ -151,6 +157,7 @@ class _ImuZarrWriter:
             self._queue.put_nowait(batch)
         except queue.Full as exc:
             raise RuntimeError("IMU Zarr writer queue is full") from exc
+        self._max_queue_depth = max(self._max_queue_depth, self._queue.qsize())
 
     def _run(self) -> None:
         while True:
@@ -163,6 +170,7 @@ class _ImuZarrWriter:
                         continue
                     self._stores[name].append(rows)
                     self._timestamp_stores[name].append(timestamps)
+                self._written_batches += 1
             except Exception as exc:
                 self._error = exc
                 self._on_error(f"IMU Zarr写入失败: {exc}")
@@ -181,6 +189,14 @@ class _ImuZarrWriter:
             raise RuntimeError(f"IMU Zarr writer failed: {self._error}")
         for store in (*self._stores.values(), *self._timestamp_stores.values()):
             store.close()
+
+    @property
+    def metrics(self) -> dict[str, int]:
+        return {
+            "queued_batches": int(self._queue.qsize()),
+            "max_queued_batches": int(self._max_queue_depth),
+            "written_batches": int(self._written_batches),
+        }
 
 
 def prewarm_recording_backends() -> None:
@@ -767,14 +783,6 @@ class CisSource(SourceBase):
                 if not left.link(right):
                     raise RuntimeError(f"GStreamer无法连接 {left.get_name()} -> {right.get_name()}")
 
-            self._timestamp_pad = self._tee.get_static_pad("sink")
-            if self._timestamp_pad is None:
-                raise RuntimeError("CIS tee缺少输入pad")
-            self._timestamp_probe_id = self._timestamp_pad.add_probe(
-                self._Gst.PadProbeType.BUFFER,
-                self._on_buffer,
-            )
-
             timestamp_queue = self._make("queue", "timestamp-queue")
             timestamp_queue.set_property("max-size-buffers", 1)
             timestamp_queue.set_property("leaky", 2)
@@ -784,6 +792,11 @@ class CisSource(SourceBase):
                 [timestamp_queue, timestamp_sink], "timestamp"
             )
             self._timestamp_drain_pad = timestamp_pad
+            self._timestamp_pad = timestamp_pad
+            self._timestamp_probe_id = self._timestamp_pad.add_probe(
+                self._Gst.PadProbeType.BUFFER,
+                self._on_buffer,
+            )
             if self.show_preview:
                 preview_queue = self._make("queue", "cis-preview-queue")
                 preview_queue.set_property("max-size-buffers", 2)
@@ -1131,7 +1144,7 @@ class CisSource(SourceBase):
             "last_pts_ns": self._last_pts_ns,
             "first_host_monotonic_ns": self._record_first_host_ns,
             "last_host_monotonic_ns": self._record_last_host_ns,
-            "timestamp_point": "post_decode_tee_sink",
+            "timestamp_point": "post_decode_timestamp_branch",
             "encoder": getattr(self, "encoder_name", None),
             "decoder": getattr(self, "decoder_name", None),
         }
@@ -1165,6 +1178,7 @@ class ImuSource(SourceBase):
         self._record_stores: dict[str, Any] = {}
         self._record_ts_stores: dict[str, Any] = {}
         self._record_writer: _ImuZarrWriter | None = None
+        self._writer_metrics: dict[str, int] = {}
         self._pending: dict[str, list[list[int]]] = {
             name: [] for name in self.SENSORS
         }
@@ -1208,7 +1222,7 @@ class ImuSource(SourceBase):
                     self._record_first_host_ns = mono
                 self._record_last_host_ns = mono
                 total_pending = sum(len(self._pending[s]) for s in self.SENSORS)
-                if total_pending >= 256 or mono - self._last_flush_ns >= 250_000_000:
+                if total_pending >= 512 or mono - self._last_flush_ns >= 1_000_000_000:
                     self._enqueue_pending_locked()
                 if mono - self._last_anchor_ns >= 1_000_000_000:
                     self._record_session.add_anchor("imu", self._counts[name], mono, mono, unix)
@@ -1412,6 +1426,7 @@ class ImuSource(SourceBase):
                 writer.close()
             except Exception as exc:
                 error = exc
+            self._writer_metrics = writer.metrics
         if session is not None:
             session.log("IMU Zarr writer stopped")
         if error is not None:
@@ -1442,5 +1457,6 @@ class ImuSource(SourceBase):
             "first_host_monotonic_ns": self._record_first_host_ns,
             "last_host_monotonic_ns": self._record_last_host_ns,
             "writer": "threaded_queue",
+            "writer_metrics": dict(self._writer_metrics),
         }
 

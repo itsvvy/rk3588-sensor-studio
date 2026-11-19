@@ -101,6 +101,7 @@ class SessionRecorder:
         self.sync_info: dict[str, Any] | None = None
         self._frames_file = None
         self._anchors_file = None
+        self._log_file = None
         self._frames_writer: csv.writer | None = None
         self._anchors_writer: csv.writer | None = None
         self._lock = threading.RLock()
@@ -148,6 +149,7 @@ class SessionRecorder:
             for directory in ("dvs", "cis", "imu", "sync", "logs"):
                 (session_dir / directory).mkdir(parents=True, exist_ok=False)
             paths.log.touch(exist_ok=False)
+            self._log_file = paths.log.open("a", encoding="utf-8", buffering=1)
             self._frames_file = paths.cis_frames.open(
                 "w", newline="", encoding="utf-8", buffering=1
             )
@@ -266,8 +268,8 @@ class SessionRecorder:
             if self.paths is None:
                 return
             timestamp = datetime.now(timezone.utc).isoformat()
-            with self.paths.log.open("a", encoding="utf-8") as handle:
-                handle.write(f"{timestamp} {message}\n")
+            if self._log_file is not None:
+                self._log_file.write(f"{timestamp} {message}\n")
 
     def _write_manifest(self, source_stats: dict[str, Any] | None = None) -> None:
         if self.paths is None:
@@ -355,16 +357,17 @@ class SessionRecorder:
                     json.dumps(self.sync_info, ensure_ascii=False, indent=2) + "\n",
                     encoding="utf-8",
                 )
-            for handle in (self._frames_file, self._anchors_file):
+            for handle in (self._frames_file, self._anchors_file, self._log_file):
                 if handle is not None:
                     handle.flush()
                     os.fsync(handle.fileno())
             self._write_manifest(source_stats)
-            for handle in (self._frames_file, self._anchors_file):
+            for handle in (self._frames_file, self._anchors_file, self._log_file):
                 if handle is not None:
                     handle.close()
             self._frames_file = None
             self._anchors_file = None
+            self._log_file = None
 
     @property
     def session_dir(self) -> Path | None:

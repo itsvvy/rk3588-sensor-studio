@@ -210,6 +210,31 @@ Final validation with the default v2 launcher:
 The synchronization design therefore remains unchanged: preroll, common host
 timestamps, per-stream coverage, and `sync/window.json` are retained.
 
+### FAT32 Stop-Latency Fix
+
+A manual `--cis-preview` recording exposed a stop-time IMU writer timeout on
+the FAT32 SD card. The writer was rewriting the current partial chunk and array
+metadata every 250 ms, creating a large number of small file replacements.
+
+The final v2 writer behavior is:
+
+- Batch IMU data for approximately one second.
+- Keep partial chunks in memory until they are full.
+- Write completed chunks and metadata incrementally.
+- Write the final partial chunk and metadata once during shutdown.
+- Keep the session log file open instead of reopening it for every line.
+
+The default output root is now the system disk at `/home/astri`; `--output-root`
+can still select the SD card explicitly.
+
+A five-second system-disk hardware recording completed with:
+
+- `status: complete`, `valid: true`
+- IMU stop completed in about 5 ms
+- At most one queued IMU batch
+- Six written batches
+- No source or shutdown errors
+
 ## Known Limits
 
 - This is software-coordinated synchronization, not a common hardware trigger.

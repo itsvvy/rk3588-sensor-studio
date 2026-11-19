@@ -44,9 +44,9 @@ Controls:
 - `Q` or `Esc`: stop all streams, finalize files, and close the application.
 - Closing the DVS window follows the same safe shutdown path.
 
-The default output directory is `/media/astri/SD-FAT32`. If it is not writable,
-the application falls back to `/home/astri`. Recording is disabled unless DVS,
-CIS, IMU, and the selected output directory are all ready.
+The default output directory is the system disk at `/home/astri`. Use
+`--output-root` to select another location explicitly. Recording is disabled
+unless DVS, CIS, IMU, and the selected output directory are all ready.
 
 Recording uses a software-coordinated preroll. All sources begin recording
 first, then the declared common start is placed 0.5 seconds later. This gives
@@ -89,8 +89,8 @@ records for pipeline testing and the session manifest is marked
 ```
 
 `cis/frames.csv` contains frame PTS and host monotonic/Unix timestamps. The host
-timestamp mapping is taken at the post-decode tee sink, before the recording
-branch, so Python work does not block the V4L2 source thread.
+timestamp mapping is taken from a leaky post-decode monitoring branch, matching
+the original stable pipeline and keeping Python work off the V4L2 source thread.
 `sync/clock_anchors.csv` contains DVS/IMU device-to-host clock anchors.
 `imu/imu.zarr` stores raw int16 XYZ arrays and matching int64 monotonic
 nanosecond timestamps. Its append-only chunks are written by a dedicated
@@ -125,6 +125,7 @@ values.
 --sync-preroll-seconds SECONDS (default: 0.5)
 --cis-preview (opt in to the full-size CIS preview; disabled by default for
                USB stability)
+--startup-settle-seconds SECONDS (default: 0.5; wait before opening USB devices)
 ```
 
 The current SD card must be writable before hardware recording. The application
