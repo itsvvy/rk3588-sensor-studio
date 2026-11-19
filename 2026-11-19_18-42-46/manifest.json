@@ -1,0 +1,152 @@
+{
+  "schema_version": 2,
+  "session_id": "2026-11-19_18-42-46",
+  "session_dir": "/home/astri/2026-11-19_18-42-46",
+  "synthetic": false,
+  "name": null,
+  "status": "complete",
+  "created_at_utc": "2026-11-19T10:42:46.016404+00:00",
+  "started_at_utc": "2026-11-19T10:42:46.538742+00:00",
+  "ended_at_utc": "2026-11-19T10:42:51.173524+00:00",
+  "start_monotonic_ns": 18236007719423,
+  "start_unix_ns": 1795084966538742176,
+  "created_monotonic_ns": 18235485384050,
+  "created_unix_ns": 1795084966016404470,
+  "end_monotonic_ns": 18240642504070,
+  "end_unix_ns": 1795084971173524490,
+  "config": {
+    "backend": "hardware",
+    "dvs_serial": "",
+    "dvs_event_rate": 0,
+    "dvs_backend": "auto",
+    "cis_device": "/dev/v4l/by-id/usb-USB_Camera_USB_Camera_01.00.00-video-index0",
+    "cis_mode": "2560x720 JPEG @ 25fps -> H.264 MKV",
+    "imu_device": "/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0",
+    "imu_baud": 115200,
+    "sync_preroll_seconds": 0.5,
+    "cis_preview": true,
+    "startup_settle_seconds": 0.5
+  },
+  "files": {
+    "dvs": {
+      "path": "dvs/events.raw",
+      "exists": true,
+      "size_bytes": 18431042
+    },
+    "cis": {
+      "path": "cis/stereo.mkv",
+      "exists": true,
+      "size_bytes": 3629784
+    },
+    "cis_frames": {
+      "path": "cis/frames.csv",
+      "exists": true,
+      "size_bytes": 6651
+    },
+    "imu": {
+      "path": "imu/imu.zarr",
+      "exists": true,
+      "size_bytes": null
+    },
+    "clock_anchors": {
+      "path": "sync/clock_anchors.csv",
+      "exists": true,
+      "size_bytes": 810
+    },
+    "sync_window": {
+      "path": "sync/window.json",
+      "exists": true,
+      "size_bytes": 893
+    }
+  },
+  "streams": {
+    "dvs": {
+      "ready": true,
+      "error": null,
+      "width": 320,
+      "height": 320,
+      "event_slices": 10147,
+      "events": 3214456,
+      "last_device_t_us": 16082665,
+      "first_host_monotonic_ns": 18235491748252,
+      "last_host_monotonic_ns": 18240643798202,
+      "transport": "openeb_hal_native_callback",
+      "preview_backend": "native",
+      "event_rate_limit": 0
+    },
+    "cis": {
+      "ready": true,
+      "error": null,
+      "synthetic": false,
+      "width": 2560,
+      "height": 720,
+      "fps": 25,
+      "preview": true,
+      "preview_frames": 414,
+      "recorded_frames": 129,
+      "last_pts_ns": 17342706228,
+      "first_host_monotonic_ns": 18235530861841,
+      "last_host_monotonic_ns": 18240649717317,
+      "timestamp_point": "post_decode_timestamp_branch",
+      "encoder": "mpph264enc",
+      "decoder": "mppjpegdec"
+    },
+    "imu": {
+      "ready": true,
+      "error": null,
+      "synthetic": false,
+      "device": "/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0",
+      "baudrate": 115200,
+      "counts": {
+        "accel": 1035,
+        "gyro": 1034,
+        "angle": 1035
+      },
+      "reconnects": 0,
+      "first_host_monotonic_ns": 18235490078451,
+      "last_host_monotonic_ns": 18240641197980,
+      "writer": "threaded_queue",
+      "writer_metrics": {
+        "queued_batches": 0,
+        "max_queued_batches": 1,
+        "written_batches": 7
+      }
+    }
+  },
+  "clock_anchor": {
+    "monotonic_ns": 18236007719423,
+    "unix_ns": 1795084966538742176
+  },
+  "synchronization": {
+    "schema_version": 1,
+    "mode": "software_coordinated_preroll",
+    "hardware_trigger": false,
+    "preroll_seconds": 0.5,
+    "planned_start_monotonic_ns": 18236007719423,
+    "stop_request_monotonic_ns": 18240642504070,
+    "stop_request_unix_ns": 1795084971173524490,
+    "common_start_monotonic_ns": 18236007719423,
+    "common_end_monotonic_ns": 18240641197980,
+    "common_duration_ns": 4633478557,
+    "expected_common_duration_ns": 4634784647,
+    "coverage_tolerance_ns": 500000000,
+    "valid": true,
+    "uncovered_streams": [],
+    "stream_ranges": {
+      "dvs": {
+        "first_host_monotonic_ns": 18235491748252,
+        "last_host_monotonic_ns": 18240643798202
+      },
+      "cis": {
+        "first_host_monotonic_ns": 18235530861841,
+        "last_host_monotonic_ns": 18240649717317
+      },
+      "imu": {
+        "first_host_monotonic_ns": 18235490078451,
+        "last_host_monotonic_ns": 18240641197980
+      }
+    }
+  },
+  "errors": [],
+  "last_error": null
+}

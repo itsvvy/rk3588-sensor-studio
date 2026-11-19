@@ -52,6 +52,25 @@ The DVS manifest count matches the event count reported by
 counters when recording starts so each manifest describes the recording
 session.
 
+### `2026-11-19_18-42-46`
+
+First retained synchronized-recording validation capture from v2.
+
+- Status: `complete`
+- Synchronization window: `valid: true`
+- DVS RAW: 3,214,456 events over 5.132713 seconds
+- CIS: 2,560x720 H.264, 25 fps, 129 recorded and decoded frames
+- IMU: 1,035 accel, 1,034 gyro, and 1,035 angle samples
+- IMU reconnects: 0
+- IMU timestamp gaps above 20 ms: 0
+- Common window: approximately 4.633 seconds
+- Output size: approximately 22 MB
+
+See [the session notes](2026-11-19_18-42-46/NOTES.md),
+`sync/window.json`, and `manifest.json` for synchronization and stream
+details. This session remains experimental and does not change the accepted
+`main` baseline.
+
 ### OpenEB event-tool compatibility analysis
 
 [`openeb_events_analysis_2026-11-17_15-22-09/`](openeb_events_analysis_2026-11-17_15-22-09/)

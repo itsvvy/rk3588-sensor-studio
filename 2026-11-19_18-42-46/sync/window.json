@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "mode": "software_coordinated_preroll",
+  "hardware_trigger": false,
+  "preroll_seconds": 0.5,
+  "planned_start_monotonic_ns": 18236007719423,
+  "stop_request_monotonic_ns": 18240642504070,
+  "stop_request_unix_ns": 1795084971173524490,
+  "common_start_monotonic_ns": 18236007719423,
+  "common_end_monotonic_ns": 18240641197980,
+  "common_duration_ns": 4633478557,
+  "expected_common_duration_ns": 4634784647,
+  "coverage_tolerance_ns": 500000000,
+  "valid": true,
+  "uncovered_streams": [],
+  "stream_ranges": {
+    "dvs": {
+      "first_host_monotonic_ns": 18235491748252,
+      "last_host_monotonic_ns": 18240643798202
+    },
+    "cis": {
+      "first_host_monotonic_ns": 18235530861841,
+      "last_host_monotonic_ns": 18240649717317
+    },
+    "imu": {
+      "first_host_monotonic_ns": 18235490078451,
+      "last_host_monotonic_ns": 18240641197980
+    }
+  }
+}
