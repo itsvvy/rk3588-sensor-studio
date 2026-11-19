@@ -145,6 +145,43 @@ link. Kernel behavior is consistent with an upstream power drop, cable/contact
 problem, or dock protection reset. The replacement dock did not improve the
 combined hardware path and was less stable than the previous dock.
 
+### Replacement Dock Retest
+
+After the USB dock/cabling was replaced again and the system re-enumerated,
+three consecutive 10-second three-source runs completed successfully with the
+native DVS callback:
+
+| Run | Common window | DVS events | CIS frames | IMU samples/type | IMU reconnects |
+|---|---:|---:|---:|---:|---:|
+| 1 | 9.508 s | 5,544,698 | 253 | 2,020-2,021 | 0 |
+| 2 | 9.484 s | 5,442,567 | 253 | 2,019 | 0 |
+| 3 | 9.478 s | 5,842,356 | 252 | 2,024 | 0 |
+
+All three windows were marked `valid`, all source errors were null, and no
+kernel USB disconnect occurred during the recordings. IMU P99 gaps were
+7.5-8.6 ms with no gaps above 20 ms. CIS CSV rows and decoded MKV frame counts
+matched in every run.
+
+Inside the common window, CIS maintained 238 frames over approximately
+9.48-9.51 seconds. P99 frame spacing was about 40.06 ms and maximum spacing was
+at most 40.07 ms. The approximately 0.5 second CIS gap observed at pipeline
+startup remained in the preroll and was excluded from the common window.
+
+The active device path is still USB2:
+
+```text
+VIA USB2 hub -> TUSB8041 USB2 hub -> DVS/camera/CH340
+```
+
+DVS did not negotiate USB3, but the replacement upstream dock/cabling made the
+combined recording repeatably stable. This further supports USB power,
+contact, or upstream-hub behavior rather than sensor bandwidth as the earlier
+root cause.
+
+Remaining observation: run 1 reported 304 more DVS events in the manifest than
+were decoded from RAW, approximately 0.005%. Runs 2 and 3 matched exactly. RAW
+verification itself succeeded in all three runs.
+
 ## Known Limits
 
 - This is software-coordinated synchronization, not a common hardware trigger.
