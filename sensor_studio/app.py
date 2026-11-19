@@ -65,6 +65,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--cis-fps", type=int, default=25)
     parser.add_argument("--imu-device", default=DEFAULT_IMU_DEVICE)
     parser.add_argument("--imu-baud", type=int, default=115_200)
+    parser.add_argument(
+        "--sync-preroll-seconds",
+        type=float,
+        default=0.5,
+        help=(
+            "Keep an overlap of this length before the declared common "
+            "recording start, allowing all streams to be trimmed to one window"
+        ),
+    )
     parser.add_argument("--headless", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument(
         "--auto-record-seconds",
@@ -150,6 +159,7 @@ def run(args: argparse.Namespace) -> int:
         "cis_mode": f"2560x720 JPEG @ {args.cis_fps}fps -> H.264 MKV",
         "imu_device": args.imu_device,
         "imu_baud": args.imu_baud,
+        "sync_preroll_seconds": args.sync_preroll_seconds,
     }
     controller = RecordingController(
         sources=sources,
@@ -157,6 +167,7 @@ def run(args: argparse.Namespace) -> int:
         name=args.name,
         synthetic=args.synthetic,
         config=config,
+        preroll_seconds=args.sync_preroll_seconds,
     )
     controller.mark_started()
 
@@ -169,8 +180,13 @@ def run(args: argparse.Namespace) -> int:
             if not controller.start_recording():
                 log.error(controller.message)
                 return 3
-            time.sleep(max(0.1, args.auto_record_seconds))
-            controller.tick()
+            deadline = time.monotonic() + max(0.1, args.auto_record_seconds)
+            while (
+                time.monotonic() < deadline
+                and controller.state == StudioState.RECORDING
+            ):
+                controller.tick()
+                time.sleep(0.05)
         finally:
             controller.request_exit()
         return 0 if controller.state == StudioState.EXIT else 4

@@ -46,6 +46,12 @@ The default output directory is `/media/astri/SD-FAT32`. If it is not writable,
 the application falls back to `/home/astri`. Recording is disabled unless DVS,
 CIS, IMU, and the selected output directory are all ready.
 
+Recording uses a software-coordinated preroll. All sources begin recording
+first, then the declared common start is placed 0.5 seconds later. This gives
+every stream an overlap before the common start and avoids losing frames or
+events when source startup takes different amounts of time. The preroll is
+configurable with `--sync-preroll-seconds`.
+
 ## Synthetic check
 
 No sensor hardware is required:
@@ -76,13 +82,30 @@ records for pipeline testing and the session manifest is marked
 ├── cis/frames.csv
 ├── imu/imu.zarr
 ├── sync/clock_anchors.csv
+├── sync/window.json
 └── logs/session.log
 ```
 
-`cis/frames.csv` contains frame PTS and host monotonic/Unix timestamps.
+`cis/frames.csv` contains frame PTS and host monotonic/Unix timestamps. The host
+timestamp is taken at the camera source pad before JPEG decode, color
+conversion, and queue scheduling.
 `sync/clock_anchors.csv` contains DVS/IMU device-to-host clock anchors.
 `imu/imu.zarr` stores raw int16 XYZ arrays and matching int64 monotonic
-nanosecond timestamps.
+nanosecond timestamps. Its append-only chunks are written by a dedicated
+thread so serial reception does not wait for storage I/O. The arrays use the
+Zarr v3 format with uncompressed little-endian chunks, which avoids the Zarr
+Python event-loop dependency on the recording path.
+
+`sync/window.json` and `manifest.json` report the per-stream observed ranges,
+the planned common start, the stop request, and the common effective window.
+If one source did not cover the common start, `valid` is false and the source
+is listed in `uncovered_streams`. Raw files are retained unchanged; consumers
+should use this window when exact three-stream overlap is required.
+
+With a static camera module, IMU values may remain zero or nearly constant.
+That is not data loss: readiness and overlap are determined from received
+packets and their timestamps, not from changes in the accelerometer or angle
+values.
 
 ## Useful options
 
@@ -97,6 +120,7 @@ nanosecond timestamps.
 --cis-fps FPS (default: 25)
 --imu-device PATH
 --imu-baud BAUD (default: 115200)
+--sync-preroll-seconds SECONDS (default: 0.5)
 ```
 
 The current SD card must be writable before hardware recording. The application
