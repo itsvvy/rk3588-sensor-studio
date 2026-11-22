@@ -1,0 +1,41 @@
+{
+  "schema_version": 2,
+  "mode": "mixed_hardware_software",
+  "hardware_trigger": false,
+  "dvs_hardware_sync": true,
+  "preroll_seconds": 0.5,
+  "planned_start_monotonic_ns": 20554768507705,
+  "stop_request_monotonic_ns": 20559321350104,
+  "stop_request_unix_ns": 1795355563787623936,
+  "common_start_monotonic_ns": 20554768507705,
+  "common_end_monotonic_ns": 20559320051329,
+  "common_duration_ns": 4551543624,
+  "expected_common_duration_ns": 4552842399,
+  "coverage_tolerance_ns": 500000000,
+  "valid": true,
+  "uncovered_streams": [],
+  "stream_ranges": {
+    "dvs_slave": {
+      "first_host_monotonic_ns": 20554253731763,
+      "last_host_monotonic_ns": 20559332441465
+    },
+    "dvs_master": {
+      "first_host_monotonic_ns": 20554254695709,
+      "last_host_monotonic_ns": 20559323396412
+    },
+    "cis": {
+      "first_host_monotonic_ns": 20554288672998,
+      "last_host_monotonic_ns": 20559320051329
+    },
+    "imu": {
+      "first_host_monotonic_ns": 20554255307327,
+      "last_host_monotonic_ns": 20559339645833
+    }
+  },
+  "stream_groups": {
+    "dvs": [
+      "dvs_slave",
+      "dvs_master"
+    ]
+  }
+}

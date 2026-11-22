@@ -12,6 +12,10 @@ portable software distribution.
 - `start_sensor_studio_v2.sh`: independent synchronized-recording launcher.
 - `sensor_studio_v2/`: optimized v2 application with preroll, common-window
   validation, source-level CIS timing, and asynchronous IMU storage.
+- `start_sensor_studio_v3.sh`: dual-DVS unified launcher.
+- `sensor_studio_v3/`: v3 application with hardware-synchronized DVS
+  Master/Slave capture, two RAW outputs, CIS preview/recording, IMU recording,
+  and the v2 software-coordinated common window.
 - `tests/`: CPU-only unit tests for controller behavior and the native frame
   builder.
 - `environment/requirements.txt`: Python environment snapshot from the RK3588.
@@ -72,6 +76,25 @@ details. This session remains experimental and does not change the accepted
 `main` baseline. See
 [the v1/v2 synchronization comparison](sensor_studio_v2/SYNC_COMPARISON.md)
 for mechanism and measured-performance details.
+
+### `2026-11-22_21-52-38`
+
+First retained v3 dual-DVS unified-recording validation.
+
+- Status: `complete`
+- Synchronization window: `valid: true`
+- DVS Slave: 1,875,546 decoded events over 5.077 seconds
+- DVS Master: 1,502,336 decoded events over 5.070 seconds
+- CIS: 2,560x720 H.264, 25 fps, 127 timestamp rows and 127 decoded frames
+- IMU: 1,020 accel and 1,019 gyro/angle samples
+- IMU reconnects: 0
+- Common window: 4.551544 seconds, about 1.299 ms shorter than expected
+
+The DVS devices use OpenEB hardware Master/Slave synchronization. CIS, IMU, and
+the DVS pair are combined through the v2-style software-coordinated preroll and
+common host-time window. See
+[`sensor_studio_v3/README.md`](sensor_studio_v3/README.md) and the session
+manifest for details.
 
 ### OpenEB event-tool compatibility analysis
 

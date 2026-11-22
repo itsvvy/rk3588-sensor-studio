@@ -1,0 +1,249 @@
+{
+  "schema_version": 3,
+  "session_id": "2026-11-22_21-52-38",
+  "session_dir": "/home/astri/2026-11-22_21-52-38",
+  "synthetic": false,
+  "name": null,
+  "status": "complete",
+  "created_at_utc": "2026-11-22T13:52:38.714244+00:00",
+  "started_at_utc": "2026-11-22T13:52:39.234784+00:00",
+  "ended_at_utc": "2026-11-22T13:52:43.787624+00:00",
+  "start_monotonic_ns": 20554768507705,
+  "start_unix_ns": 1795355559234783871,
+  "created_monotonic_ns": 20554247969959,
+  "created_unix_ns": 1795355558714243792,
+  "end_monotonic_ns": 20559321350104,
+  "end_unix_ns": 1795355563787623936,
+  "config": {
+    "backend": "hardware",
+    "dvs_master_serial": "2629600159",
+    "dvs_slave_serial": "2629600155",
+    "dvs_sync_delay_seconds": 1.5,
+    "dvs_event_rate": 0,
+    "dvs_backend": "auto",
+    "cis_device": "/dev/v4l/by-id/usb-USB_Camera_USB_Camera_01.00.00-video-index0",
+    "cis_mode": "2560x720 JPEG @ 25fps -> H.264 MKV",
+    "imu_device": "/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0",
+    "imu_baud": 115200,
+    "sync_preroll_seconds": 0.5,
+    "cis_preview": true,
+    "startup_settle_seconds": 0.5
+  },
+  "files": {
+    "dvs_slave": {
+      "path": "dvs/slave.raw",
+      "exists": true,
+      "size_bytes": 17531236
+    },
+    "dvs_master": {
+      "path": "dvs/master.raw",
+      "exists": true,
+      "size_bytes": 14553580
+    },
+    "cis": {
+      "path": "cis/stereo.mkv",
+      "exists": true,
+      "size_bytes": 3621577
+    },
+    "cis_frames": {
+      "path": "cis/frames.csv",
+      "exists": true,
+      "size_bytes": 6547
+    },
+    "imu": {
+      "path": "imu/imu.zarr",
+      "exists": true,
+      "size_bytes": null
+    },
+    "clock_anchors": {
+      "path": "sync/clock_anchors.csv",
+      "exists": true,
+      "size_bytes": 1290
+    },
+    "sync_window": {
+      "path": "sync/window.json",
+      "exists": true,
+      "size_bytes": 1129
+    }
+  },
+  "streams": {
+    "dvs": {
+      "ready": true,
+      "error": null,
+      "hardware_sync": true,
+      "sync_mode": "hardware_master_slave",
+      "master_serial": "2629600159",
+      "slave_serial": "2629600155",
+      "events": 3377887,
+      "first_host_monotonic_ns": 20554254695709,
+      "last_host_monotonic_ns": 20559323396412,
+      "preview_sync": {
+        "mode": "hardware_master_slave",
+        "valid": true,
+        "roles_correct": true,
+        "both_positive": true,
+        "both_active": true,
+        "timestamps_aligned": true,
+        "timestamp_delta_us": 13659,
+        "timestamp_tolerance_us": 250000,
+        "sync_delay_seconds": 1.5,
+        "slave": {
+          "role": "slave",
+          "serial": "2629600155",
+          "sync_mode": "slave",
+          "ready": true,
+          "events": 1875551,
+          "last_device_t_us": 14373657,
+          "first_positive_device_t_us": 9986,
+          "first_host_monotonic_ns": 20544964294647,
+          "last_host_monotonic_ns": 20559333068540
+        },
+        "master": {
+          "role": "master",
+          "serial": "2629600159",
+          "sync_mode": "master",
+          "ready": true,
+          "events": 1502336,
+          "last_device_t_us": 14359998,
+          "first_positive_device_t_us": 2861,
+          "first_host_monotonic_ns": 20544960391319,
+          "last_host_monotonic_ns": 20559314425441
+        }
+      },
+      "substreams": {
+        "dvs_slave": {
+          "ready": true,
+          "error": null,
+          "width": 320,
+          "height": 320,
+          "event_slices": 6222,
+          "events": 1875551,
+          "last_device_t_us": 14373657,
+          "first_positive_device_t_us": 9986,
+          "preview_first_host_monotonic_ns": 20544964294647,
+          "preview_last_host_monotonic_ns": 20559333068540,
+          "first_host_monotonic_ns": 20554253731763,
+          "last_host_monotonic_ns": 20559332441465,
+          "role": "slave",
+          "serial": "2629600155",
+          "stream_name": "dvs_slave",
+          "sync_mode": "slave",
+          "transport": "openeb_hal_native_callback",
+          "preview_backend": "native",
+          "event_rate_limit": 0
+        },
+        "dvs_master": {
+          "ready": true,
+          "error": null,
+          "width": 320,
+          "height": 320,
+          "event_slices": 5039,
+          "events": 1502336,
+          "last_device_t_us": 14359998,
+          "first_positive_device_t_us": 2861,
+          "preview_first_host_monotonic_ns": 20544960391319,
+          "preview_last_host_monotonic_ns": 20559314425441,
+          "first_host_monotonic_ns": 20554254695709,
+          "last_host_monotonic_ns": 20559323396412,
+          "role": "master",
+          "serial": "2629600159",
+          "stream_name": "dvs_master",
+          "sync_mode": "master",
+          "transport": "openeb_hal_native_callback",
+          "preview_backend": "native",
+          "event_rate_limit": 0
+        }
+      }
+    },
+    "cis": {
+      "ready": true,
+      "error": null,
+      "synthetic": false,
+      "width": 2560,
+      "height": 720,
+      "fps": 25,
+      "preview": true,
+      "preview_frames": 405,
+      "recorded_frames": 127,
+      "last_pts_ns": 18018361191,
+      "first_host_monotonic_ns": 20554288672998,
+      "last_host_monotonic_ns": 20559320051329,
+      "timestamp_point": "post_decode_timestamp_branch",
+      "encoder": "mpph264enc",
+      "decoder": "mppjpegdec"
+    },
+    "imu": {
+      "ready": true,
+      "error": null,
+      "synthetic": false,
+      "device": "/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0",
+      "baudrate": 115200,
+      "counts": {
+        "accel": 1020,
+        "gyro": 1019,
+        "angle": 1019
+      },
+      "received_counts": {
+        "accel": 3284,
+        "gyro": 3283,
+        "angle": 3283
+      },
+      "reconnects": 0,
+      "first_host_monotonic_ns": 20554255307327,
+      "last_host_monotonic_ns": 20559339645833,
+      "writer": "threaded_queue",
+      "writer_metrics": {
+        "queued_batches": 0,
+        "max_queued_batches": 1,
+        "written_batches": 6
+      }
+    }
+  },
+  "clock_anchor": {
+    "monotonic_ns": 20554768507705,
+    "unix_ns": 1795355559234783871
+  },
+  "synchronization": {
+    "schema_version": 2,
+    "mode": "mixed_hardware_software",
+    "hardware_trigger": false,
+    "dvs_hardware_sync": true,
+    "preroll_seconds": 0.5,
+    "planned_start_monotonic_ns": 20554768507705,
+    "stop_request_monotonic_ns": 20559321350104,
+    "stop_request_unix_ns": 1795355563787623936,
+    "common_start_monotonic_ns": 20554768507705,
+    "common_end_monotonic_ns": 20559320051329,
+    "common_duration_ns": 4551543624,
+    "expected_common_duration_ns": 4552842399,
+    "coverage_tolerance_ns": 500000000,
+    "valid": true,
+    "uncovered_streams": [],
+    "stream_ranges": {
+      "dvs_slave": {
+        "first_host_monotonic_ns": 20554253731763,
+        "last_host_monotonic_ns": 20559332441465
+      },
+      "dvs_master": {
+        "first_host_monotonic_ns": 20554254695709,
+        "last_host_monotonic_ns": 20559323396412
+      },
+      "cis": {
+        "first_host_monotonic_ns": 20554288672998,
+        "last_host_monotonic_ns": 20559320051329
+      },
+      "imu": {
+        "first_host_monotonic_ns": 20554255307327,
+        "last_host_monotonic_ns": 20559339645833
+      }
+    },
+    "stream_groups": {
+      "dvs": [
+        "dvs_slave",
+        "dvs_master"
+      ]
+    }
+  },
+  "errors": [],
+  "last_error": null
+}
